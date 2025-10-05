@@ -12,5 +12,17 @@
     app:layout_constraintEnd_toEndOf="parent"
     app:layout_constraintStart_toStartOf="parent"
     app:layout_constraintTop_toTopOf="parent" />
+    
+ <EditText
+    android:id="@+id/editTextUserInput"
+    android:layout_width="0dp"
+    android:layout_height="wrap_content"
+    android:hint="Escribe algo aquí..."
+    android:padding="16dp"
+    app:layout_constraintBottom_toBottomOf="parent"
+    app:layout_constraintEnd_toEndOf="parent"
+    app:layout_constraintStart_toStartOf="parent"
+    app:layout_constraintWidth_default="wrap"
+    app:layout_constraintWidth_percent="0.8" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

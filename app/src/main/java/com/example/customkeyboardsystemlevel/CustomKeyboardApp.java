@@ -1,8 +1,10 @@
 package com.example.customkeyboardsystemlevel;
 
+import android.content.Intent;
 import android.inputmethodservice.InputMethodService;
 import android.inputmethodservice.Keyboard;
 import android.inputmethodservice.KeyboardView;
+import android.provider.Settings;
 import android.view.View;
 import android.view.inputmethod.InputConnection;
 
@@ -17,6 +19,20 @@ public class CustomKeyboardApp extends InputMethodService
 
         keyboardView.setOnKeyboardActionListener(this);
         return keyboardView;
+    }
+
+    @Override
+    public void onWindowShown() {
+        super.onWindowShown();
+        if (Settings.canDrawOverlays(this)) {
+            startService(new Intent(this, FloatingButtonService.class));
+        }
+    }
+
+    @Override
+    public void onWindowHidden() {
+        super.onWindowHidden();
+        stopService(new Intent(this, FloatingButtonService.class));
     }
 
     @Override

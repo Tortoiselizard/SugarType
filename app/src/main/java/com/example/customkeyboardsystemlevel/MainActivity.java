@@ -17,9 +17,7 @@ import android.widget.Toast;
 import com.example.customkeyboardsystemlevel.databinding.ActivityMainBinding;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.StringJoiner;
-import java.util.stream.Collectors;
 
 public class MainActivity extends AppCompatActivity {
     private ActivityMainBinding binding;
@@ -28,6 +26,10 @@ public class MainActivity extends AppCompatActivity {
     public static final String DATA_LIST_KEY = "dataList";
     // Constante para la acción del Broadcast
     public static final String ACTION_DATA_UPDATE = "com.example.customkeyboardsystemlevel.DATA_UPDATE";
+    
+    // Bandera para rastrear el estado del FloatingButtonService iniciado desde MainActivity
+    // NOTA: Esta bandera no rastrea el estado si el servicio fue iniciado por CustomKeyboardApp
+    private boolean isFloatingButtonServiceActive = false; 
 
     // Variables para RecyclerView y data
     private RecyclerView recyclerView;
@@ -40,7 +42,7 @@ public class MainActivity extends AppCompatActivity {
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
 
-        // MODIFICACIÓN: Cargar o inicializar la lista
+        // Cargar o inicializar la lista
         loadDataListFromPrefs();
         if (dataList.isEmpty()) {
             dataList.add(1);
@@ -56,16 +58,13 @@ public class MainActivity extends AppCompatActivity {
         binding.buttonAddItem.setOnClickListener(v -> addItem());
         binding.buttonRemoveItem.setOnClickListener(v -> removeItem());
         
-        // AÑADIDO: Listener para el nuevo botón "Edit"
+        // Listener para el botón "Edit"
         binding.buttonEditItem.setOnClickListener(v -> showEditPopup());
 
-        // MODIFICACIÓN: Enviar el broadcast inicial al crear la actividad
         sendDataListBroadcast();
-
         checkOverlayPermission();
     }
     
-    // MODIFICACIÓN: Nuevo método para cargar la lista desde SharedPreferences
     private void loadDataListFromPrefs() {
         SharedPreferences prefs = getSharedPreferences(SHARED_PREFS_NAME, MODE_PRIVATE);
         String savedList = prefs.getString(DATA_LIST_KEY, "");
@@ -83,7 +82,6 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    // Método para añadir un ítem a la lista
     private void addItem() {
         int newItem = dataList.isEmpty() ? 1 : dataList.get(dataList.size() - 1) + 1;
         int position = dataList.size();
@@ -91,33 +89,58 @@ public class MainActivity extends AppCompatActivity {
         adapter.notifyItemInserted(position);
         recyclerView.scrollToPosition(position);
         saveDataListToPrefs();
-        sendDataListBroadcast(); // << AÑADIDO: Enviar broadcast tras añadir
+        sendDataListBroadcast();
     }
 
-    // Método para eliminar el último ítem de la lista
     private void removeItem() {
         if (!dataList.isEmpty()) {
             int position = dataList.size() - 1;
             dataList.remove(position);
             adapter.notifyItemRemoved(position);
             saveDataListToPrefs();
-            sendDataListBroadcast(); // << AÑADIDO: Enviar broadcast tras eliminar
+            sendDataListBroadcast();
         } else {
             Toast.makeText(this, "La lista está vacía.", Toast.LENGTH_SHORT).show();
         }
     }
     
     /**
-     * AÑADIDO: Método para mostrar el popup "Editing".
+     * MODIFICADO: Método para alternar (toggle) el FloatingButtonService.
+     * 1. Detiene el servicio si está activo.
+     * 2. Inicia el servicio si está inactivo.
      */
     private void showEditPopup() {
-        Toast.makeText(this, "Editing", Toast.LENGTH_SHORT).show();
+        Intent serviceIntent = new Intent(this, FloatingButtonService.class);
+        
+        if (isFloatingButtonServiceActive) {
+            // DETENER EL SERVICIO (Toggle OFF)
+            stopService(serviceIntent);
+            isFloatingButtonServiceActive = false;
+            Toast.makeText(this, "Floating Button Service Stopped", Toast.LENGTH_SHORT).show();
+            binding.buttonEditItem.setText("Edit (OFF)");
+
+        } else {
+            // 1. Verificar el permiso de superposición (draw over other apps)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+                // Si no tiene permiso, solicita el permiso y NO inicia el servicio
+                checkOverlayPermission();
+                return; 
+            }
+            
+            // INICIAR EL SERVICIO (Toggle ON)
+            
+            // 2. Pasar la lista de datos actual del MainActivity al servicio
+            serviceIntent.putIntegerArrayListExtra(DATA_LIST_KEY, new ArrayList<>(dataList));
+            
+            // 3. Iniciar el servicio
+            startService(serviceIntent);
+            isFloatingButtonServiceActive = true;
+            Toast.makeText(this, "Floating Button Service Started", Toast.LENGTH_SHORT).show();
+            binding.buttonEditItem.setText("Edit (ON)");
+        }
     }
 
 
-    /**
-     * Nuevo método para guardar la lista de datos en SharedPreferences.
-     */
     private void saveDataListToPrefs() {
         SharedPreferences prefs = getSharedPreferences(SHARED_PREFS_NAME, MODE_PRIVATE);
         SharedPreferences.Editor editor = prefs.edit();
@@ -131,17 +154,12 @@ public class MainActivity extends AppCompatActivity {
         editor.apply();
     }
 
-    /**
-     * AÑADIDO: Nuevo método para enviar un broadcast local con la lista de datos.
-     */
     private void sendDataListBroadcast() {
         Intent intent = new Intent(ACTION_DATA_UPDATE);
-        // Usamos una copia de la lista para evitar problemas de concurrencia/mutabilidad
         intent.putIntegerArrayListExtra(DATA_LIST_KEY, new ArrayList<>(dataList));
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
     }
 
-    // El resto de los métodos (checkOverlayPermission, onActivityResult, onDestroy) permanecen sin cambios...
     private void checkOverlayPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
             Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,

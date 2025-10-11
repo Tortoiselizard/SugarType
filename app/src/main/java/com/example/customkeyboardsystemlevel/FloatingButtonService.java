@@ -10,6 +10,7 @@ import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
+import android.widget.ImageButton; // Importación necesaria
 import android.widget.Toast;
 
 public class FloatingButtonService extends Service {
@@ -34,13 +35,9 @@ public class FloatingButtonService extends Service {
 
         int layout_parms;
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-
-        {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             layout_parms = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
-        }
-
-        else {
+        } else {
             layout_parms = WindowManager.LayoutParams.TYPE_PHONE;
         }
 
@@ -58,7 +55,11 @@ public class FloatingButtonService extends Service {
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
         windowManager.addView(floatingButtonView, params);
 
-        floatingButtonView.findViewById(R.id.floating_button).setOnTouchListener(new View.OnTouchListener() {
+        // 1. Configurar un Click Listener para cada botón
+        setupButtonListeners();
+
+        // 2. Configurar el Touch Listener en el contenedor para arrastrar el conjunto de botones (Grid)
+        floatingButtonView.setOnTouchListener(new View.OnTouchListener() {
             private int initialX;
             private int initialY;
             private float initialTouchX;
@@ -72,26 +73,51 @@ public class FloatingButtonService extends Service {
                         initialY = params.y;
                         initialTouchX = event.getRawX();
                         initialTouchY = event.getRawY();
-                        return true;
-                    case MotionEvent.ACTION_UP:
-                        // Podrías agregar lógica de clic aquí si lo deseas
-                        // Por ejemplo, si el movimiento fue corto, considéralo un clic
-                        int xDiff = (int) (event.getRawX() - initialTouchX);
-                        int yDiff = (int) (event.getRawY() - initialTouchY);
-                        if (Math.abs(xDiff) < 10 && Math.abs(yDiff) < 10) {
-                            Toast.makeText(FloatingButtonService.this, "Botón flotante presionado", Toast.LENGTH_SHORT).show();
-                        }
-                        return true;
+                        // Devolvemos false para permitir que el evento se propague a los botones individuales
+                        // para que puedan manejar el ACTION_UP como un click.
+                        return false; 
                     case MotionEvent.ACTION_MOVE:
                         params.x = initialX + (int) (event.getRawX() - initialTouchX);
                         params.y = initialY + (int) (event.getRawY() - initialTouchY);
                         windowManager.updateViewLayout(floatingButtonView, params);
-                        return true;
+                        // Devolvemos true para indicar que hemos manejado el movimiento (arrastre)
+                        return true; 
+                    case MotionEvent.ACTION_UP:
+                         // Devolvemos false para que el evento de "click" (ACTION_DOWN seguido de ACTION_UP) 
+                         // sea manejado por el click listener de cada ImageButton.
+                        return false; 
                 }
                 return false;
             }
         });
     }
+
+    private void setupButtonListeners() {
+        int[] buttonIds = {
+            R.id.floating_button_1, R.id.floating_button_2, R.id.floating_button_3,
+            R.id.floating_button_4, R.id.floating_button_5, R.id.floating_button_6,
+            R.id.floating_button_7, R.id.floating_button_8, R.id.floating_button_9
+        };
+
+        for (int id : buttonIds) {
+            ImageButton button = floatingButtonView.findViewById(id);
+            if (button != null) {
+                // Configuramos un simple click listener para la acción del botón
+                button.setOnClickListener(v -> {
+                    // Usamos el ID para identificar qué botón fue presionado
+                    String buttonName = getResources().getResourceEntryName(v.getId());
+                    Toast.makeText(FloatingButtonService.this, "Botón: " + buttonName + " presionado", Toast.LENGTH_SHORT).show();
+                    
+                    // Lógica adicional para cada botón iría aquí...
+                });
+                
+                // Es crucial anular cualquier otro TouchListener que pueda interferir con el arrastre
+                // del layout padre, pero en este caso, la configuración de los onTouch y onClick
+                // en el padre e hijo respectivamente debería manejarlo.
+            }
+        }
+    }
+
 
     @Override
     public void onDestroy() {
@@ -101,4 +127,3 @@ public class FloatingButtonService extends Service {
         }
     }
 }
-

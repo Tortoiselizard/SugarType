@@ -13,12 +13,20 @@ public class CustomKeyboardApp extends InputMethodService
 
     @Override
     public View onCreateInputView() {
-        KeyboardView keyboardView = (KeyboardView) getLayoutInflater().inflate(R.layout.custom_keyboard_layout, null);
+        // Inflamos el LinearLayout contenedor (la vista raíz)
+        View inputView = getLayoutInflater().inflate(R.layout.custom_keyboard_layout, null);
+        
+        // Buscamos la KeyboardView dentro del contenedor usando su ID
+        KeyboardView keyboardView = inputView.findViewById(R.id.keyboard_view);
+        
+        // El resto de la lógica sigue igual
         Keyboard keyboard = new Keyboard(this, R.xml.custom_keypad);
         keyboardView.setKeyboard(keyboard);
 
         keyboardView.setOnKeyboardActionListener(this);
-        return keyboardView;
+        
+        // Devolvemos la vista raíz (el LinearLayout con el spacer de 1dp)
+        return inputView; 
     }
 
     @Override
@@ -32,8 +40,9 @@ public class CustomKeyboardApp extends InputMethodService
     @Override
     public void onWindowHidden() {
         super.onWindowHidden();
-        stopService(new Intent(this, FloatingButtonService.class));
+            stopService(new Intent(this, FloatingButtonService.class));
     }
+    
 
     @Override
     public void onPress(int i) {

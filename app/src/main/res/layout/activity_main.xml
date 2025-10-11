@@ -41,7 +41,15 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="-"
-            android:textSize="24sp"/>
+            android:textSize="24sp"
+            android:layout_marginEnd="16dp"/>
+
+        <Button
+            android:id="@+id/buttonEditItem"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Edit"
+            android:textSize="18sp"/>
     </LinearLayout>
 
     <EditText

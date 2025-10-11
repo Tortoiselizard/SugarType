@@ -3,7 +3,7 @@ package com.example.customkeyboardsystemlevel;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
-import androidx.localbroadcastmanager.content.LocalBroadcastManager; // Importación añadida
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -17,9 +17,9 @@ import android.widget.Toast;
 import com.example.customkeyboardsystemlevel.databinding.ActivityMainBinding;
 
 import java.util.ArrayList;
-import java.util.Arrays; // Importación añadida
+import java.util.Arrays;
 import java.util.StringJoiner;
-import java.util.stream.Collectors; // Importación añadida
+import java.util.stream.Collectors;
 
 public class MainActivity extends AppCompatActivity {
     private ActivityMainBinding binding;
@@ -27,7 +27,7 @@ public class MainActivity extends AppCompatActivity {
     public static final String SHARED_PREFS_NAME = "CustomKeyboardPrefs";
     public static final String DATA_LIST_KEY = "dataList";
     // Constante para la acción del Broadcast
-    public static final String ACTION_DATA_UPDATE = "com.example.customkeyboardsystemlevel.DATA_UPDATE"; 
+    public static final String ACTION_DATA_UPDATE = "com.example.customkeyboardsystemlevel.DATA_UPDATE";
 
     // Variables para RecyclerView y data
     private RecyclerView recyclerView;
@@ -49,13 +49,16 @@ public class MainActivity extends AppCompatActivity {
 
         recyclerView = binding.recyclerViewList;
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
-        
+
         adapter = new MyAdapter(dataList);
         recyclerView.setAdapter(adapter);
 
         binding.buttonAddItem.setOnClickListener(v -> addItem());
         binding.buttonRemoveItem.setOnClickListener(v -> removeItem());
         
+        // AÑADIDO: Listener para el nuevo botón "Edit"
+        binding.buttonEditItem.setOnClickListener(v -> showEditPopup());
+
         // MODIFICACIÓN: Enviar el broadcast inicial al crear la actividad
         sendDataListBroadcast();
 
@@ -103,6 +106,14 @@ public class MainActivity extends AppCompatActivity {
             Toast.makeText(this, "La lista está vacía.", Toast.LENGTH_SHORT).show();
         }
     }
+    
+    /**
+     * AÑADIDO: Método para mostrar el popup "Editing".
+     */
+    private void showEditPopup() {
+        Toast.makeText(this, "Editing", Toast.LENGTH_SHORT).show();
+    }
+
 
     /**
      * Nuevo método para guardar la lista de datos en SharedPreferences.
@@ -115,18 +126,18 @@ public class MainActivity extends AppCompatActivity {
         for (Integer item : dataList) {
             joiner.add(String.valueOf(item));
         }
-        
+
         editor.putString(DATA_LIST_KEY, joiner.toString());
         editor.apply();
     }
-    
+
     /**
      * AÑADIDO: Nuevo método para enviar un broadcast local con la lista de datos.
      */
     private void sendDataListBroadcast() {
         Intent intent = new Intent(ACTION_DATA_UPDATE);
         // Usamos una copia de la lista para evitar problemas de concurrencia/mutabilidad
-        intent.putIntegerArrayListExtra(DATA_LIST_KEY, new ArrayList<>(dataList)); 
+        intent.putIntegerArrayListExtra(DATA_LIST_KEY, new ArrayList<>(dataList));
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
     }
 

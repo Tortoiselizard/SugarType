@@ -1,9 +1,12 @@
 package com.example.customkeyboardsystemlevel;
 
 import android.app.Service;
+import android.content.BroadcastReceiver; // Importación añadida
+import android.content.Context; // Importación añadida
 import android.content.Intent;
+import android.content.IntentFilter; // Importación añadida
 import android.graphics.PixelFormat;
-import android.graphics.Typeface; // Importación añadida
+import android.graphics.Typeface;
 import android.os.Build;
 import android.os.IBinder;
 import android.view.Gravity;
@@ -12,17 +15,20 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
-import android.widget.LinearLayout; // Importación añadida
+import android.widget.LinearLayout;
 import android.widget.Toast;
 
-import java.util.ArrayList; // Importación añadida
+import androidx.localbroadcastmanager.content.LocalBroadcastManager; // Importación añadida
+
+import java.util.ArrayList;
 
 public class FloatingButtonService extends Service {
 
     private WindowManager windowManager;
-    private View floatingContainerView; // Renombrado de floatingButtonView
-    private LinearLayout buttonContainer; // Referencia al contenedor de botones
+    private View floatingContainerView;
+    private LinearLayout buttonContainer;
     private WindowManager.LayoutParams params;
+    private DataUpdateReceiver dataUpdateReceiver; // Referencia al Receiver
 
     public FloatingButtonService() {
     }
@@ -36,7 +42,6 @@ public class FloatingButtonService extends Service {
     public void onCreate() {
         super.onCreate();
 
-        // Inflar el layout contenedor
         floatingContainerView = LayoutInflater.from(this).inflate(R.layout.floating_button_layout, null);
         buttonContainer = floatingContainerView.findViewById(R.id.floating_button_container);
 
@@ -61,18 +66,24 @@ public class FloatingButtonService extends Service {
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
         windowManager.addView(floatingContainerView, params);
 
-        // Configurar el listener para arrastrar el contenedor
         setupDragListener();
+        
+        // AÑADIDO: Registrar el BroadcastReceiver
+        dataUpdateReceiver = new DataUpdateReceiver();
+        LocalBroadcastManager.getInstance(this).registerReceiver(
+                dataUpdateReceiver, new IntentFilter(MainActivity.ACTION_DATA_UPDATE));
     }
 
     /**
-     * MODIFICACIÓN: Se ejecuta cada vez que se llama a startService.
-     * Aquí recibimos la lista de datos y actualizamos los botones.
+     * MODIFICACIÓN: Ahora onStartCommand solo procesa el intent de inicio
+     * ya que las actualizaciones posteriores vendrán por el BroadcastReceiver.
      */
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        if (intent != null && intent.hasExtra("dataList")) {
-            ArrayList<Integer> dataList = intent.getIntegerArrayListExtra("dataList");
+        // Al iniciar el servicio, la lista inicial es pasada por CustomKeyboardApp.
+        // Opcionalmente, puedes dejar esta lógica para manejar un inicio rápido.
+        if (intent != null && intent.hasExtra(MainActivity.DATA_LIST_KEY)) {
+            ArrayList<Integer> dataList = intent.getIntegerArrayListExtra(MainActivity.DATA_LIST_KEY);
             if (dataList != null) {
                 updateButtons(dataList);
             }
@@ -81,7 +92,7 @@ public class FloatingButtonService extends Service {
     }
 
     /**
-     * MODIFICACIÓN: Nuevo método para crear y mostrar los botones dinámicamente.
+     * Nuevo método para crear y mostrar los botones dinámicamente.
      */
     private void updateButtons(ArrayList<Integer> items) {
         // Limpiar botones anteriores para evitar duplicados
@@ -123,8 +134,7 @@ public class FloatingButtonService extends Service {
     }
     
     /**
-     * MODIFICACIÓN: La lógica de arrastre ahora está en su propio método.
-     * El listener se asigna al contenedor principal.
+     * La lógica de arrastre del contenedor.
      */
     private void setupDragListener() {
         floatingContainerView.setOnTouchListener(new View.OnTouchListener() {
@@ -132,6 +142,8 @@ public class FloatingButtonService extends Service {
             private int initialY;
             private float initialTouchX;
             private float initialTouchY;
+            private long startTime;
+            private static final int MAX_CLICK_DURATION = 200; // ms para considerar un clic
 
             @Override
             public boolean onTouch(View v, MotionEvent event) {
@@ -141,6 +153,7 @@ public class FloatingButtonService extends Service {
                         initialY = params.y;
                         initialTouchX = event.getRawX();
                         initialTouchY = event.getRawY();
+                        startTime = System.currentTimeMillis();
                         return true;
                     case MotionEvent.ACTION_MOVE:
                         params.x = initialX + (int) (event.getRawX() - initialTouchX);
@@ -148,12 +161,35 @@ public class FloatingButtonService extends Service {
                         windowManager.updateViewLayout(floatingContainerView, params);
                         return true;
                     case MotionEvent.ACTION_UP:
-                         // Se consume el evento para que el gesto de arrastre no se confunda con un clic
-                        return true;
+                         // Se añade lógica para manejar el clic si no se arrastró
+                        long endTime = System.currentTimeMillis();
+                        if (endTime - startTime < MAX_CLICK_DURATION && 
+                            Math.abs(event.getRawX() - initialTouchX) < 10 && 
+                            Math.abs(event.getRawY() - initialTouchY) < 10) {
+                            // Si fuera un solo botón, se manejaría un clic aquí.
+                            // Como es un contenedor de botones, el clic lo manejarán los botones.
+                            return false; 
+                        }
+                        return true; // Consumir el evento de arrastre
                 }
                 return false;
             }
         });
+    }
+
+    /**
+     * AÑADIDO: BroadcastReceiver para recibir actualizaciones de la lista.
+     */
+    private class DataUpdateReceiver extends BroadcastReceiver {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (MainActivity.ACTION_DATA_UPDATE.equals(intent.getAction())) {
+                ArrayList<Integer> dataList = intent.getIntegerArrayListExtra(MainActivity.DATA_LIST_KEY);
+                if (dataList != null) {
+                    updateButtons(dataList); // Actualiza los botones con la nueva lista
+                }
+            }
+        }
     }
 
     @Override
@@ -161,6 +197,10 @@ public class FloatingButtonService extends Service {
         super.onDestroy();
         if (floatingContainerView != null) {
             windowManager.removeView(floatingContainerView);
+        }
+        // AÑADIDO: Desregistrar el BroadcastReceiver
+        if (dataUpdateReceiver != null) {
+            LocalBroadcastManager.getInstance(this).unregisterReceiver(dataUpdateReceiver);
         }
     }
 }

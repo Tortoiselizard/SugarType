@@ -3,9 +3,10 @@ package com.example.customkeyboardsystemlevel;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager; // Importación añadida
 
 import android.content.Intent;
-import android.content.SharedPreferences; // Importación añadida
+import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -16,13 +17,17 @@ import android.widget.Toast;
 import com.example.customkeyboardsystemlevel.databinding.ActivityMainBinding;
 
 import java.util.ArrayList;
-import java.util.StringJoiner; // Importación añadida
+import java.util.Arrays; // Importación añadida
+import java.util.StringJoiner;
+import java.util.stream.Collectors; // Importación añadida
 
 public class MainActivity extends AppCompatActivity {
     private ActivityMainBinding binding;
     private static final int CODE_DRAW_OVER_OTHER_APP_PERMISSION = 2084;
-    public static final String SHARED_PREFS_NAME = "CustomKeyboardPrefs"; // Constante añadida
-    public static final String DATA_LIST_KEY = "dataList"; // Constante añadida
+    public static final String SHARED_PREFS_NAME = "CustomKeyboardPrefs";
+    public static final String DATA_LIST_KEY = "dataList";
+    // Constante para la acción del Broadcast
+    public static final String ACTION_DATA_UPDATE = "com.example.customkeyboardsystemlevel.DATA_UPDATE"; 
 
     // Variables para RecyclerView y data
     private RecyclerView recyclerView;
@@ -35,9 +40,12 @@ public class MainActivity extends AppCompatActivity {
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
 
-        dataList = new ArrayList<>();
-        dataList.add(1);
-        saveDataListToPrefs(); // << MODIFICACIÓN: Guardar la lista inicial
+        // MODIFICACIÓN: Cargar o inicializar la lista
+        loadDataListFromPrefs();
+        if (dataList.isEmpty()) {
+            dataList.add(1);
+            saveDataListToPrefs();
+        }
 
         recyclerView = binding.recyclerViewList;
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
@@ -47,8 +55,29 @@ public class MainActivity extends AppCompatActivity {
 
         binding.buttonAddItem.setOnClickListener(v -> addItem());
         binding.buttonRemoveItem.setOnClickListener(v -> removeItem());
+        
+        // MODIFICACIÓN: Enviar el broadcast inicial al crear la actividad
+        sendDataListBroadcast();
 
         checkOverlayPermission();
+    }
+    
+    // MODIFICACIÓN: Nuevo método para cargar la lista desde SharedPreferences
+    private void loadDataListFromPrefs() {
+        SharedPreferences prefs = getSharedPreferences(SHARED_PREFS_NAME, MODE_PRIVATE);
+        String savedList = prefs.getString(DATA_LIST_KEY, "");
+        dataList = new ArrayList<>();
+
+        if (savedList != null && !savedList.isEmpty()) {
+            String[] items = savedList.split(",");
+            for (String item : items) {
+                try {
+                    dataList.add(Integer.parseInt(item.trim()));
+                } catch (NumberFormatException e) {
+                    // Ignorar valores no numéricos
+                }
+            }
+        }
     }
 
     // Método para añadir un ítem a la lista
@@ -58,7 +87,8 @@ public class MainActivity extends AppCompatActivity {
         dataList.add(newItem);
         adapter.notifyItemInserted(position);
         recyclerView.scrollToPosition(position);
-        saveDataListToPrefs(); // << MODIFICACIÓN: Guardar lista tras añadir
+        saveDataListToPrefs();
+        sendDataListBroadcast(); // << AÑADIDO: Enviar broadcast tras añadir
     }
 
     // Método para eliminar el último ítem de la lista
@@ -67,21 +97,20 @@ public class MainActivity extends AppCompatActivity {
             int position = dataList.size() - 1;
             dataList.remove(position);
             adapter.notifyItemRemoved(position);
-            saveDataListToPrefs(); // << MODIFICACIÓN: Guardar lista tras eliminar
+            saveDataListToPrefs();
+            sendDataListBroadcast(); // << AÑADIDO: Enviar broadcast tras eliminar
         } else {
             Toast.makeText(this, "La lista está vacía.", Toast.LENGTH_SHORT).show();
         }
     }
 
     /**
-     * MODIFICACIÓN: Nuevo método para guardar la lista de datos en SharedPreferences.
-     * Convierte la lista de enteros en un único string separado por comas.
+     * Nuevo método para guardar la lista de datos en SharedPreferences.
      */
     private void saveDataListToPrefs() {
         SharedPreferences prefs = getSharedPreferences(SHARED_PREFS_NAME, MODE_PRIVATE);
         SharedPreferences.Editor editor = prefs.edit();
 
-        // Usamos StringJoiner para crear un string separado por comas (ej: "1,2,3")
         StringJoiner joiner = new StringJoiner(",");
         for (Integer item : dataList) {
             joiner.add(String.valueOf(item));
@@ -89,6 +118,16 @@ public class MainActivity extends AppCompatActivity {
         
         editor.putString(DATA_LIST_KEY, joiner.toString());
         editor.apply();
+    }
+    
+    /**
+     * AÑADIDO: Nuevo método para enviar un broadcast local con la lista de datos.
+     */
+    private void sendDataListBroadcast() {
+        Intent intent = new Intent(ACTION_DATA_UPDATE);
+        // Usamos una copia de la lista para evitar problemas de concurrencia/mutabilidad
+        intent.putIntegerArrayListExtra(DATA_LIST_KEY, new ArrayList<>(dataList)); 
+        LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
     }
 
     // El resto de los métodos (checkOverlayPermission, onActivityResult, onDestroy) permanecen sin cambios...

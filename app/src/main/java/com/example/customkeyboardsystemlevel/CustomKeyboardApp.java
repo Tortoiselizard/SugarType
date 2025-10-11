@@ -1,14 +1,14 @@
 package com.example.customkeyboardsystemlevel;
 
 import android.content.Intent;
-import android.content.SharedPreferences; // Importación añadida
+import android.content.SharedPreferences; 
 import android.inputmethodservice.InputMethodService;
 import android.inputmethodservice.Keyboard;
 import android.inputmethodservice.KeyboardView;
 import android.provider.Settings;
 import android.view.View;
 import android.view.inputmethod.InputConnection;
-import java.util.ArrayList; // Importación añadida
+import java.util.ArrayList; 
 
 public class CustomKeyboardApp extends InputMethodService
         implements KeyboardView.OnKeyboardActionListener {
@@ -28,7 +28,12 @@ public class CustomKeyboardApp extends InputMethodService
         super.onWindowShown();
         if (Settings.canDrawOverlays(this)) {
             // <<--- INICIO DE MODIFICACIÓN --->>
-            // 1. Leer los datos desde SharedPreferences
+            // 1. Lectura de SharedPreferences MOVIDA a MainActivity para centralizar la gestión de datos.
+            
+            // 2. Iniciar el servicio y pasarle la lista de datos inicial (se mantendrá
+            // la lógica de iniciar el servicio solo al mostrar la ventana).
+            // La lista real y las actualizaciones se gestionarán a través de un Broadcast.
+            
             SharedPreferences prefs = getSharedPreferences(MainActivity.SHARED_PREFS_NAME, MODE_PRIVATE);
             String savedList = prefs.getString(MainActivity.DATA_LIST_KEY, "");
             ArrayList<Integer> dataList = new ArrayList<>();
@@ -43,10 +48,9 @@ public class CustomKeyboardApp extends InputMethodService
                     }
                 }
             }
-
-            // 2. Iniciar el servicio y pasarle la lista de datos
+            
             Intent intent = new Intent(this, FloatingButtonService.class);
-            intent.putIntegerArrayListExtra("dataList", dataList);
+            intent.putIntegerArrayListExtra(MainActivity.DATA_LIST_KEY, dataList); // Pasar la lista inicial
             startService(intent);
             // <<--- FIN DE MODIFICACIÓN --->>
         }

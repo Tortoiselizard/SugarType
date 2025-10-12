@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <declare-styleable name="StatefulButtonView">
+        <attr name="state" format="enum">
+            <enum name="working" value="0" />
+            <enum name="editing" value="1" />
+        </attr>
+        <attr name="buttonValue" format="string" />
+    </declare-styleable>
+</resources>

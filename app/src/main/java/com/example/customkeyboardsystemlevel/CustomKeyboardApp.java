@@ -51,6 +51,10 @@ public class CustomKeyboardApp extends InputMethodService
             
             Intent intent = new Intent(this, FloatingButtonService.class);
             intent.putIntegerArrayListExtra(MainActivity.DATA_LIST_KEY, dataList); // Pasar la lista inicial
+            
+            // MODIFICACIÓN: Establecer el estado inicial a WORKING
+            intent.putExtra(MainActivity.INITIAL_STATE_KEY, MainActivity.STATE_WORKING_VALUE); // WORKING
+            
             startService(intent);
             // <<--- FIN DE MODIFICACIÓN --->>
         }

@@ -27,6 +27,11 @@ public class MainActivity extends AppCompatActivity {
     // Constante para la acción del Broadcast
     public static final String ACTION_DATA_UPDATE = "com.example.customkeyboardsystemlevel.DATA_UPDATE";
     
+    // NUEVAS CONSTANTES PARA PASAR EL ESTADO
+    public static final String INITIAL_STATE_KEY = "initialState";
+    public static final int STATE_WORKING_VALUE = 0; // Corresponde a StatefulButtonView.State.WORKING
+    public static final int STATE_EDITING_VALUE = 1; // Corresponde a StatefulButtonView.State.EDITING
+    
     // Bandera para rastrear el estado del FloatingButtonService iniciado desde MainActivity
     // NOTA: Esta bandera no rastrea el estado si el servicio fue iniciado por CustomKeyboardApp
     private boolean isFloatingButtonServiceActive = false; 
@@ -131,6 +136,9 @@ public class MainActivity extends AppCompatActivity {
             
             // 2. Pasar la lista de datos actual del MainActivity al servicio
             serviceIntent.putIntegerArrayListExtra(DATA_LIST_KEY, new ArrayList<>(dataList));
+            
+            // MODIFICACIÓN: Establecer el estado inicial a EDITING
+            serviceIntent.putExtra(INITIAL_STATE_KEY, STATE_EDITING_VALUE); // EDITING
             
             // 3. Iniciar el servicio
             startService(serviceIntent);

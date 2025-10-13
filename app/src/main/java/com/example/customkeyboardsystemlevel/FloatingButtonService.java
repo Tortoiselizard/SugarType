@@ -26,6 +26,9 @@ public class FloatingButtonService extends Service {
     private LinearLayout buttonContainer;
     private WindowManager.LayoutParams params;
     private DataUpdateReceiver dataUpdateReceiver;
+    
+    // NUEVA VARIABLE: Para almacenar el estado actual (WORKING o EDITING)
+    private StatefulButtonView.State currentButtonState = StatefulButtonView.State.WORKING; 
 
     public FloatingButtonService() {
     }
@@ -72,10 +75,19 @@ public class FloatingButtonService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        if (intent != null && intent.hasExtra(MainActivity.DATA_LIST_KEY)) {
-            ArrayList<Integer> dataList = intent.getIntegerArrayListExtra(MainActivity.DATA_LIST_KEY);
-            if (dataList != null) {
-                updateButtons(dataList);
+        if (intent != null) {
+            // MODIFICACIÓN: Leer el estado del Intent y actualizar la variable de clase
+            if (intent.hasExtra(MainActivity.INITIAL_STATE_KEY)) {
+                int stateIndex = intent.getIntExtra(MainActivity.INITIAL_STATE_KEY, MainActivity.STATE_WORKING_VALUE); 
+                // Convertir el entero (0 o 1) a la constante enum
+                this.currentButtonState = StatefulButtonView.State.values()[stateIndex];
+            }
+            
+            if (intent.hasExtra(MainActivity.DATA_LIST_KEY)) {
+                ArrayList<Integer> dataList = intent.getIntegerArrayListExtra(MainActivity.DATA_LIST_KEY);
+                if (dataList != null) {
+                    updateButtons(dataList);
+                }
             }
         }
         return START_NOT_STICKY;
@@ -87,9 +99,8 @@ public class FloatingButtonService extends Service {
     private void updateButtons(ArrayList<Integer> items) {
         buttonContainer.removeAllViews();
 
-        // Puedes establecer un estado por defecto o pasarlo a través del Intent.
-        // Aquí, como ejemplo, usamos "working".
-        StatefulButtonView.State initialState = StatefulButtonView.State.EDITING;
+        // MODIFICACIÓN: Usar el estado actual almacenado en el servicio.
+        StatefulButtonView.State initialState = this.currentButtonState; 
 
         for (Integer itemNumber : items) {
             // Crea una nueva instancia de tu CustomView
@@ -144,7 +155,8 @@ public class FloatingButtonService extends Service {
             if (MainActivity.ACTION_DATA_UPDATE.equals(intent.getAction())) {
                 ArrayList<Integer> dataList = intent.getIntegerArrayListExtra(MainActivity.DATA_LIST_KEY);
                 if (dataList != null) {
-                    updateButtons(dataList);
+                    // Al recibir un Broadcast, se usa el último estado establecido al iniciar/reiniciar el servicio.
+                    updateButtons(dataList); 
                 }
             }
         }

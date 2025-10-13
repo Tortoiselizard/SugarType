@@ -86,15 +86,16 @@ public class StatefulButtonView extends FrameLayout {
     }
 
     private void updateButtonState() {
-        // Aquí puedes cambiar la apariencia del botón según el estado
-        // Por ejemplo, cambiar el color de fondo
+        // Establecer la opacidad al 100% (1.0f) para ambos estados.
+        button.setAlpha(1.0f); 
+
         if (currentState == State.EDITING) {
-            // Suponiendo que tienes un color definido en res/values/colors.xml
-            // button.setBackgroundColor(getResources().getColor(R.color.editing_color, null));
-            button.setAlpha(0.7f); // Ejemplo visual para el estado "editing"
+            // Asignar el nuevo fondo con borde.
+            // Asegúrate de que este Drawable exista en res/drawable/
+            button.setBackgroundResource(R.drawable.floating_button_background_editing);
         } else {
-            // button.setBackgroundColor(getResources().getColor(R.color.working_color, null));
-            button.setAlpha(1.0f); // Estado normal "working"
+            // Volver al fondo original para el estado normal "working".
+            button.setBackgroundResource(R.drawable.floating_button_background);
         }
     }
 }

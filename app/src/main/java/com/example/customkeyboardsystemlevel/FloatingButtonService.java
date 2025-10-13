@@ -89,7 +89,7 @@ public class FloatingButtonService extends Service {
 
         // Puedes establecer un estado por defecto o pasarlo a través del Intent.
         // Aquí, como ejemplo, usamos "working".
-        StatefulButtonView.State initialState = StatefulButtonView.State.WORKING;
+        StatefulButtonView.State initialState = StatefulButtonView.State.EDITING;
 
         for (Integer itemNumber : items) {
             // Crea una nueva instancia de tu CustomView

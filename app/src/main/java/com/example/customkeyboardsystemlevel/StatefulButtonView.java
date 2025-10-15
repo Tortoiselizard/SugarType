@@ -3,6 +3,7 @@ package com.example.customkeyboardsystemlevel;
 import android.content.Context;
 import android.content.res.TypedArray;
 import android.util.AttributeSet;
+import android.util.TypedValue;
 import android.view.LayoutInflater;
 import android.widget.Button;
 import android.widget.FrameLayout;
@@ -19,8 +20,16 @@ public class StatefulButtonView extends FrameLayout {
     private String buttonValue;
     private Button button;
 
+    // Constante para el desplazamiento en DP
+    private static final int MOVE_DOWN_DP = 10;
+    
+    // Variable para almacenar el desplazamiento en píxeles (calculado una vez)
+    private float moveDownPx;
+
     public StatefulButtonView(Context context, AttributeSet attrs) {
         super(context, attrs);
+        // Calcula la conversión aquí para asegurarte de que moveDownPx esté inicializado
+        moveDownPx = dpToPx(context, MOVE_DOWN_DP);
         init(context, attrs);
     }
 
@@ -28,6 +37,8 @@ public class StatefulButtonView extends FrameLayout {
         super(context);
         this.buttonValue = buttonValue;
         this.currentState = initialState;
+        // Calcula la conversión aquí para asegurarte de que moveDownPx esté inicializado
+        moveDownPx = dpToPx(context, MOVE_DOWN_DP);
         init(context, null);
     }
 
@@ -56,12 +67,17 @@ public class StatefulButtonView extends FrameLayout {
         button.setOnClickListener(v -> {
             switch (currentState) {
                 case WORKING:
-                    // Acción para el estado "working"
+                    // Acción para el estado "working": No se realiza ninguna acción de movimiento.
                     Toast.makeText(getContext(), "Botón (Working): " + buttonValue, Toast.LENGTH_SHORT).show();
                     break;
                 case EDITING:
                     // Acción para el estado "editing"
-                    Toast.makeText(getContext(), "Botón (Editing): " + buttonValue, Toast.LENGTH_SHORT).show();
+                    Toast.makeText(getContext(), "Botón (Editing): " + buttonValue + " - MOVER", Toast.LENGTH_SHORT).show();
+                    
+                    // Lógica para mover la vista 10dp hacia abajo
+                    // Se aplica la nueva traslación Y al FrameLayout (StatefulButtonView)
+                    this.setTranslationY(this.getTranslationY() + moveDownPx); 
+                    
                     break;
             }
         });
@@ -97,5 +113,20 @@ public class StatefulButtonView extends FrameLayout {
             // Volver al fondo original para el estado normal "working".
             button.setBackgroundResource(R.drawable.floating_button_background);
         }
+    }
+    
+    /**
+     * Convierte DP a Píxeles usando TypedValue.
+     * Este es el método recomendado por Android para la conversión de unidades.
+     * * @param context El Context.
+     * @param dp La dimensión en Density-independent Pixels (DP).
+     * @return La dimensión convertida en píxeles.
+     */
+    private float dpToPx(Context context, int dp) {
+        return TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_DIP, 
+                (float) dp, 
+                context.getResources().getDisplayMetrics()
+        );
     }
 }

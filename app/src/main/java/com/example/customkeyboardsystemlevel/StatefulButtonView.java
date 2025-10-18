@@ -84,10 +84,6 @@ public class StatefulButtonView extends FrameLayout {
                 // Acción para el estado "editing"
                 Toast.makeText(getContext(), "Botón (Editing): " + buttonValue + " - MOVER", Toast.LENGTH_SHORT).show();
                 
-                // Lógica para mover la vista 10dp hacia abajo
-                // Se aplica la nueva traslación Y al FrameLayout (StatefulButtonView)
-                this.setTranslationY(this.getTranslationY() + moveDownPx); 
-                
                 break;
         }
     }

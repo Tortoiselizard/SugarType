@@ -64,23 +64,32 @@ public class StatefulButtonView extends FrameLayout {
         updateButtonState();
         button.setText(buttonValue);
 
-        button.setOnClickListener(v -> {
-            switch (currentState) {
-                case WORKING:
-                    // Acción para el estado "working": No se realiza ninguna acción de movimiento.
-                    Toast.makeText(getContext(), "Botón (Working): " + buttonValue, Toast.LENGTH_SHORT).show();
-                    break;
-                case EDITING:
-                    // Acción para el estado "editing"
-                    Toast.makeText(getContext(), "Botón (Editing): " + buttonValue + " - MOVER", Toast.LENGTH_SHORT).show();
-                    
-                    // Lógica para mover la vista 10dp hacia abajo
-                    // Se aplica la nueva traslación Y al FrameLayout (StatefulButtonView)
-                    this.setTranslationY(this.getTranslationY() + moveDownPx); 
-                    
-                    break;
-            }
-        });
+        // MODIFICADO: Se elimina el OnClickListener. 
+        // La acción de clic ahora se gestionará desde el FloatingButtonService.
+        // Se puede dejar el botón 'clickable' para accesibilidad, pero se debe asegurar que
+        // no consuma el evento 'ACTION_DOWN' si es posible, o que el Listener esté en el FrameLayout padre.
+    }
+    
+    /**
+     * NUEVO MÉTODO: Ejecuta la acción de clic previamente definida en el OnClickListener.
+     * Este método es llamado por FloatingButtonService cuando detecta un "click" y no un "drag".
+     */
+    public void performClickAction() {
+        switch (currentState) {
+            case WORKING:
+                // Acción para el estado "working"
+                Toast.makeText(getContext(), "Botón (Working): " + buttonValue, Toast.LENGTH_SHORT).show();
+                break;
+            case EDITING:
+                // Acción para el estado "editing"
+                Toast.makeText(getContext(), "Botón (Editing): " + buttonValue + " - MOVER", Toast.LENGTH_SHORT).show();
+                
+                // Lógica para mover la vista 10dp hacia abajo
+                // Se aplica la nueva traslación Y al FrameLayout (StatefulButtonView)
+                this.setTranslationY(this.getTranslationY() + moveDownPx); 
+                
+                break;
+        }
     }
 
     public void setState(State state) {

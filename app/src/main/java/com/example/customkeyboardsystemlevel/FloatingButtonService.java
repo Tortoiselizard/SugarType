@@ -105,6 +105,12 @@ public class FloatingButtonService extends Service {
                 String.valueOf(itemNumber), 
                 initialState
             );
+            
+            // IMPORTANTE para el arrastre: 
+            // Esto asegura que el FrameLayout (padre) reciba los eventos táctiles
+            // y no solo el Button (hijo).
+            statefulButton.findViewById(R.id.stateful_button).setClickable(false);
+
 
             // PASO 3: Crear un WindowManager.LayoutParams para esta VISTA INDIVIDUAL.
             final WindowManager.LayoutParams individualParams = new WindowManager.LayoutParams(
@@ -133,7 +139,8 @@ public class FloatingButtonService extends Service {
     }
     
     /**
-     * MODIFICADO: Ahora recibe la vista específica y sus parámetros para mover solo esa vista.
+     * MODIFICADO: Ahora incluye la llamada a performClickAction() en ACTION_UP 
+     * cuando se detecta un click y no un arrastre.
      */
     private void setupDragListener(final View viewToDrag, final WindowManager.LayoutParams viewParams) {
         viewToDrag.setOnTouchListener(new View.OnTouchListener() {
@@ -143,6 +150,8 @@ public class FloatingButtonService extends Service {
             private float initialTouchY;
             private long startTime;
             private static final int MAX_CLICK_DURATION = 200;
+            // Tolerancia de movimiento en píxeles para distinguir click de drag
+            private static final int MAX_MOVE_TOLERANCE = 10; 
 
             @Override
             public boolean onTouch(View v, MotionEvent event) {
@@ -156,19 +165,32 @@ public class FloatingButtonService extends Service {
                         startTime = System.currentTimeMillis();
                         return true;
                     case MotionEvent.ACTION_MOVE:
-                        // Actualizamos los parámetros de la VISTA ESPECÍFICA
-                        viewParams.x = initialX + (int) (event.getRawX() - initialTouchX);
-                        viewParams.y = initialY + (int) (event.getRawY() - initialTouchY);
-                        // Usamos updateViewLayout para actualizar SOLO esa vista.
-                        windowManager.updateViewLayout(viewToDrag, viewParams); 
+                        // Solo procesar el movimiento si el movimiento excede la tolerancia para evitar
+                        // un arrastre accidental al intentar un click.
+                        if (Math.abs(event.getRawX() - initialTouchX) > MAX_MOVE_TOLERANCE || 
+                            Math.abs(event.getRawY() - initialTouchY) > MAX_MOVE_TOLERANCE) {
+                            
+                            // Actualizamos los parámetros de la VISTA ESPECÍFICA
+                            viewParams.x = initialX + (int) (event.getRawX() - initialTouchX);
+                            viewParams.y = initialY + (int) (event.getRawY() - initialTouchY);
+                            // Usamos updateViewLayout para actualizar SOLO esa vista.
+                            windowManager.updateViewLayout(viewToDrag, viewParams); 
+                        }
                         return true;
                     case MotionEvent.ACTION_UP:
                         long endTime = System.currentTimeMillis();
+                        
                         // Lógica de "click" vs "drag"
                         if (endTime - startTime < MAX_CLICK_DURATION && 
-                            Math.abs(event.getRawX() - initialTouchX) < 10 && 
-                            Math.abs(event.getRawY() - initialTouchY) < 10) {
-                            return false; // Permite el evento de click.
+                            Math.abs(event.getRawX() - initialTouchX) < MAX_MOVE_TOLERANCE && 
+                            Math.abs(event.getRawY() - initialTouchY) < MAX_MOVE_TOLERANCE) {
+                            
+                            // Si es un click, llamamos a la acción de la CustomView.
+                            if (viewToDrag instanceof StatefulButtonView) {
+                                ((StatefulButtonView) viewToDrag).performClickAction();
+                            }
+                            
+                            return true; // Consumir el evento de clic.
                         }
                         return true; // Consumir el evento (fue un arrastre).
                 }

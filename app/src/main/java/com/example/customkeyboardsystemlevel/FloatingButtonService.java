@@ -5,6 +5,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.graphics.PixelFormat;
 import android.os.Build;
 import android.os.IBinder;
@@ -23,13 +24,21 @@ public class FloatingButtonService extends Service {
 
     private WindowManager windowManager;
     
-    // MODIFICADO: Lista para rastrear todas las vistas flotantes individuales (una por botón).
+    // Lista para rastrear todas las vistas flotantes individuales (una por botón).
     private final ArrayList<View> floatingViews = new ArrayList<>();
     
     private DataUpdateReceiver dataUpdateReceiver;
     
-    // NUEVA VARIABLE: Para almacenar el estado actual (WORKING o EDITING)
+    // Para almacenar el estado actual (WORKING o EDITING)
     private StatefulButtonView.State currentButtonState = StatefulButtonView.State.WORKING; 
+    
+    // CONSTANTE: Nombre para SharedPreferences
+    private static final String PREFS_NAME = "FloatingButtonPrefs";
+    private static final String X_POS_KEY_PREFIX = "button_x_";
+    private static final String Y_POS_KEY_PREFIX = "button_y_";
+    // Posición inicial por defecto si no se encuentra ninguna guardada.
+    private static final int DEFAULT_INITIAL_X = 0;
+    private static final int DEFAULT_INITIAL_Y_OFFSET = 100;
 
     public FloatingButtonService() {
     }
@@ -42,15 +51,9 @@ public class FloatingButtonService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
-
-        // Se elimina la inflación del layout principal y la adición inicial de una sola vista.
-        // Ahora, cada CustomView será su propia ventana flotante.
         
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
 
-        // Ya no se llama a setupDragListener() aquí. Se llama dentro de updateButtons()
-        // para cada botón individual.
-        
         dataUpdateReceiver = new DataUpdateReceiver();
         LocalBroadcastManager.getInstance(this).registerReceiver(
                 dataUpdateReceiver, new IntentFilter(MainActivity.ACTION_DATA_UPDATE));
@@ -77,8 +80,8 @@ public class FloatingButtonService extends Service {
     }
 
     /**
-     * MODIFICADO: Ahora crea instancias de StatefulButtonView y añade cada una 
-     * como una ventana flotante separada al WindowManager.
+     * MODIFICADO: Ahora crea instancias de StatefulButtonView, carga su posición 
+     * guardada y añade cada una como una ventana flotante separada al WindowManager.
      */
     private void updateButtons(ArrayList<Integer> items) {
         // PASO 1: Remover todas las vistas flotantes actuales.
@@ -87,6 +90,8 @@ public class FloatingButtonService extends Service {
         }
         floatingViews.clear(); 
 
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        
         StatefulButtonView.State initialState = this.currentButtonState; 
         int verticalOffset = 0; // Para espaciar los botones verticalmente
         final int OFFSET_INCREMENT = 150; // Espaciado vertical entre botones
@@ -106,11 +111,9 @@ public class FloatingButtonService extends Service {
                 initialState
             );
             
-            // IMPORTANTE para el arrastre: 
             // Esto asegura que el FrameLayout (padre) reciba los eventos táctiles
             // y no solo el Button (hijo).
             statefulButton.findViewById(R.id.stateful_button).setClickable(false);
-
 
             // PASO 3: Crear un WindowManager.LayoutParams para esta VISTA INDIVIDUAL.
             final WindowManager.LayoutParams individualParams = new WindowManager.LayoutParams(
@@ -126,14 +129,28 @@ public class FloatingButtonService extends Service {
             );
 
             individualParams.gravity = Gravity.TOP | Gravity.START;
-            individualParams.x = 0;
-            // POSICIÓN ÚNICA: Usar el offset vertical para que no se superpongan.
-            individualParams.y = 100 + verticalOffset; 
-            verticalOffset += OFFSET_INCREMENT;
+            
+            // ************ MODIFICACIÓN CLAVE (CARGA DE POSICIÓN) ************
+            // Cargar posición guardada o usar posición por defecto si no existe.
+            int savedX = prefs.getInt(X_POS_KEY_PREFIX + itemNumber, DEFAULT_INITIAL_X);
+            // Usar una posición Y inicial basada en el índice SÓLO si no hay una posición Y guardada.
+            int defaultY = DEFAULT_INITIAL_Y_OFFSET + verticalOffset;
+            int savedY = prefs.getInt(Y_POS_KEY_PREFIX + itemNumber, defaultY);
+
+            individualParams.x = savedX;
+            individualParams.y = savedY;
+            // Solo incrementamos el offset para la próxima vista si estamos usando la posición Y por defecto
+            // Es una heurística simple: si ya tiene posición guardada, asumimos que no necesitamos el espaciado
+            // automático, pero si no la tiene, le damos un espaciado inicial.
+            if (savedY == defaultY) {
+                 verticalOffset += OFFSET_INCREMENT;
+            }
+            // ************ FIN MODIFICACIÓN CLAVE (CARGA DE POSICIÓN) ************
+
             
             // PASO 4: Añadir el listener de arrastre a esta nueva vista y sus parámetros.
-            // MODIFICACIÓN: Pasamos el estado al listener para que pueda condicionar el arrastre.
-            setupDragListener(statefulButton, individualParams, initialState);
+            // MODIFICACIÓN: Se añade el itemNumber para guardar la posición.
+            setupDragListener(statefulButton, individualParams, initialState, itemNumber);
 
             // PASO 5: Añadir la vista al WindowManager. Esto crea la ventana flotante.
             windowManager.addView(statefulButton, individualParams);
@@ -144,17 +161,16 @@ public class FloatingButtonService extends Service {
     }
     
     /**
-     * MODIFICADO: Ahora incluye la llamada a performClickAction() en ACTION_UP 
-     * cuando se detecta un click y no un arrastre.
-     * NUEVO PARÁMETRO: Se añade el estado del botón para condicionar el arrastre.
+     * MODIFICADO: Se añade el parámetro itemNumber para guardar la posición al finalizar el arrastre.
      */
-    private void setupDragListener(final View viewToDrag, final WindowManager.LayoutParams viewParams, final StatefulButtonView.State state) {
+    private void setupDragListener(final View viewToDrag, final WindowManager.LayoutParams viewParams, final StatefulButtonView.State state, final int itemNumber) {
         viewToDrag.setOnTouchListener(new View.OnTouchListener() {
             private int initialX;
             private int initialY;
             private float initialTouchX;
             private float initialTouchY;
             private long startTime;
+            private boolean isMoving = false; // Bandera para rastrear si realmente hubo arrastre.
             private static final int MAX_CLICK_DURATION = 200;
             // Tolerancia de movimiento en píxeles para distinguir click de drag
             private static final int MAX_MOVE_TOLERANCE = 10; 
@@ -162,18 +178,10 @@ public class FloatingButtonService extends Service {
             @Override
             public boolean onTouch(View v, MotionEvent event) {
                 
-                // NUEVA LÓGICA: Si no está en modo EDITING, el listener de arrastre 
+                // Si no está en modo EDITING, el listener de arrastre 
                 // debería ignorar el evento MOVE para impedir el arrastre.
-                if (state != StatefulButtonView.State.EDITING) {
-                    // Permitimos el ACTION_DOWN/UP para que se procese como un click, 
-                    // pero no permitimos el arrastre (ACTION_MOVE).
-                    if (event.getAction() != MotionEvent.ACTION_MOVE) {
-                         // Procesar el click si no es EDITING (sigue la lógica de abajo)
-                    } else {
-                        // Si es ACTION_MOVE y no estamos en EDITING, no hacemos nada 
-                        // y el evento se consume.
-                        return false; 
-                    }
+                if (state != StatefulButtonView.State.EDITING && event.getAction() == MotionEvent.ACTION_MOVE) {
+                    return false; 
                 }
                 
                 switch (event.getAction()) {
@@ -184,6 +192,7 @@ public class FloatingButtonService extends Service {
                         initialTouchX = event.getRawX();
                         initialTouchY = event.getRawY();
                         startTime = System.currentTimeMillis();
+                        isMoving = false; // Reiniciar la bandera
                         return true;
                     case MotionEvent.ACTION_MOVE:
                         // Solo permitimos el arrastre si el estado es EDITING.
@@ -193,6 +202,7 @@ public class FloatingButtonService extends Service {
                             if (Math.abs(event.getRawX() - initialTouchX) > MAX_MOVE_TOLERANCE || 
                                 Math.abs(event.getRawY() - initialTouchY) > MAX_MOVE_TOLERANCE) {
                                 
+                                isMoving = true; // El arrastre ha comenzado.
                                 // Actualizamos los parámetros de la VISTA ESPECÍFICA
                                 viewParams.x = initialX + (int) (event.getRawX() - initialTouchX);
                                 viewParams.y = initialY + (int) (event.getRawY() - initialTouchY);
@@ -201,14 +211,13 @@ public class FloatingButtonService extends Service {
                             }
                             return true;
                         }
-                        // Si no es EDITING, devolvemos false para ACTION_MOVE para no procesar el arrastre
-                        // y permitir que el evento posiblemente continúe hacia abajo.
                         return false; 
                     case MotionEvent.ACTION_UP:
                         long endTime = System.currentTimeMillis();
                         
                         // Lógica de "click" vs "drag"
                         if (endTime - startTime < MAX_CLICK_DURATION && 
+                            !isMoving &&
                             Math.abs(event.getRawX() - initialTouchX) < MAX_MOVE_TOLERANCE && 
                             Math.abs(event.getRawY() - initialTouchY) < MAX_MOVE_TOLERANCE) {
                             
@@ -218,8 +227,17 @@ public class FloatingButtonService extends Service {
                             }
                             
                             return true; // Consumir el evento de clic.
+                        } else if (state == StatefulButtonView.State.EDITING && isMoving) {
+                            // ************ MODIFICACIÓN CLAVE (GUARDADO DE POSICIÓN) ************
+                            // Si fue un arrastre en modo EDITING, guardar la posición final.
+                            SharedPreferences.Editor editor = getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit();
+                            editor.putInt(X_POS_KEY_PREFIX + itemNumber, viewParams.x);
+                            editor.putInt(Y_POS_KEY_PREFIX + itemNumber, viewParams.y);
+                            editor.apply();
+                            // ************ FIN MODIFICACIÓN CLAVE (GUARDADO DE POSICIÓN) ************
                         }
-                        return true; // Consumir el evento (fue un arrastre).
+                        
+                        return true; // Consumir el evento (fue un arrastre o un click).
                 }
                 return false;
             }

@@ -117,7 +117,11 @@ public class FloatingButtonService extends Service {
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 layout_parms,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                // MODIFICACIÓN: Si está en modo WORKING, añadimos FLAG_NOT_TOUCH_MODAL para 
+                // asegurar que los eventos de click pasen a la vista, pero no afecten el arrastre.
+                // En modo EDITING, se mantiene solo FLAG_NOT_FOCUSABLE.
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | 
+                (initialState == StatefulButtonView.State.WORKING ? WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL : 0),
                 PixelFormat.TRANSLUCENT
             );
 
@@ -128,7 +132,8 @@ public class FloatingButtonService extends Service {
             verticalOffset += OFFSET_INCREMENT;
             
             // PASO 4: Añadir el listener de arrastre a esta nueva vista y sus parámetros.
-            setupDragListener(statefulButton, individualParams);
+            // MODIFICACIÓN: Pasamos el estado al listener para que pueda condicionar el arrastre.
+            setupDragListener(statefulButton, individualParams, initialState);
 
             // PASO 5: Añadir la vista al WindowManager. Esto crea la ventana flotante.
             windowManager.addView(statefulButton, individualParams);
@@ -141,8 +146,9 @@ public class FloatingButtonService extends Service {
     /**
      * MODIFICADO: Ahora incluye la llamada a performClickAction() en ACTION_UP 
      * cuando se detecta un click y no un arrastre.
+     * NUEVO PARÁMETRO: Se añade el estado del botón para condicionar el arrastre.
      */
-    private void setupDragListener(final View viewToDrag, final WindowManager.LayoutParams viewParams) {
+    private void setupDragListener(final View viewToDrag, final WindowManager.LayoutParams viewParams, final StatefulButtonView.State state) {
         viewToDrag.setOnTouchListener(new View.OnTouchListener() {
             private int initialX;
             private int initialY;
@@ -155,6 +161,21 @@ public class FloatingButtonService extends Service {
 
             @Override
             public boolean onTouch(View v, MotionEvent event) {
+                
+                // NUEVA LÓGICA: Si no está en modo EDITING, el listener de arrastre 
+                // debería ignorar el evento MOVE para impedir el arrastre.
+                if (state != StatefulButtonView.State.EDITING) {
+                    // Permitimos el ACTION_DOWN/UP para que se procese como un click, 
+                    // pero no permitimos el arrastre (ACTION_MOVE).
+                    if (event.getAction() != MotionEvent.ACTION_MOVE) {
+                         // Procesar el click si no es EDITING (sigue la lógica de abajo)
+                    } else {
+                        // Si es ACTION_MOVE y no estamos en EDITING, no hacemos nada 
+                        // y el evento se consume.
+                        return false; 
+                    }
+                }
+                
                 switch (event.getAction()) {
                     case MotionEvent.ACTION_DOWN:
                         // Usamos los parámetros de la VISTA ESPECÍFICA
@@ -165,18 +186,24 @@ public class FloatingButtonService extends Service {
                         startTime = System.currentTimeMillis();
                         return true;
                     case MotionEvent.ACTION_MOVE:
-                        // Solo procesar el movimiento si el movimiento excede la tolerancia para evitar
-                        // un arrastre accidental al intentar un click.
-                        if (Math.abs(event.getRawX() - initialTouchX) > MAX_MOVE_TOLERANCE || 
-                            Math.abs(event.getRawY() - initialTouchY) > MAX_MOVE_TOLERANCE) {
-                            
-                            // Actualizamos los parámetros de la VISTA ESPECÍFICA
-                            viewParams.x = initialX + (int) (event.getRawX() - initialTouchX);
-                            viewParams.y = initialY + (int) (event.getRawY() - initialTouchY);
-                            // Usamos updateViewLayout para actualizar SOLO esa vista.
-                            windowManager.updateViewLayout(viewToDrag, viewParams); 
+                        // Solo permitimos el arrastre si el estado es EDITING.
+                        if (state == StatefulButtonView.State.EDITING) {
+                            // Solo procesar el movimiento si el movimiento excede la tolerancia para evitar
+                            // un arrastre accidental al intentar un click.
+                            if (Math.abs(event.getRawX() - initialTouchX) > MAX_MOVE_TOLERANCE || 
+                                Math.abs(event.getRawY() - initialTouchY) > MAX_MOVE_TOLERANCE) {
+                                
+                                // Actualizamos los parámetros de la VISTA ESPECÍFICA
+                                viewParams.x = initialX + (int) (event.getRawX() - initialTouchX);
+                                viewParams.y = initialY + (int) (event.getRawY() - initialTouchY);
+                                // Usamos updateViewLayout para actualizar SOLO esa vista.
+                                windowManager.updateViewLayout(viewToDrag, viewParams); 
+                            }
+                            return true;
                         }
-                        return true;
+                        // Si no es EDITING, devolvemos false para ACTION_MOVE para no procesar el arrastre
+                        // y permitir que el evento posiblemente continúe hacia abajo.
+                        return false; 
                     case MotionEvent.ACTION_UP:
                         long endTime = System.currentTimeMillis();
                         
@@ -204,6 +231,13 @@ public class FloatingButtonService extends Service {
         public void onReceive(Context context, Intent intent) {
             if (MainActivity.ACTION_DATA_UPDATE.equals(intent.getAction())) {
                 ArrayList<Integer> dataList = intent.getIntegerArrayListExtra(MainActivity.DATA_LIST_KEY);
+                
+                // MODIFICACIÓN: Leer el estado del Intent antes de llamar a updateButtons.
+                if (intent.hasExtra(MainActivity.INITIAL_STATE_KEY)) {
+                    int stateIndex = intent.getIntExtra(MainActivity.INITIAL_STATE_KEY, MainActivity.STATE_WORKING_VALUE); 
+                    FloatingButtonService.this.currentButtonState = StatefulButtonView.State.values()[stateIndex];
+                }
+                
                 if (dataList != null) {
                     updateButtons(dataList); 
                 }

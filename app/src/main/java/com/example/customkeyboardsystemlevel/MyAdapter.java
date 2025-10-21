@@ -1,5 +1,9 @@
 package com.example.customkeyboardsystemlevel;
 
+import android.content.Context;
+import android.content.SharedPreferences;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -14,6 +18,8 @@ import java.util.ArrayList;
 // El Adapter se encarga de crear ViewHolders y vincular los datos a ellos.
 public class MyAdapter extends RecyclerView.Adapter<MyAdapter.MyViewHolder> {
     private ArrayList<Integer> mDataset;
+    // NUEVA CONSTANTE para la clave de SharedPreferences del texto
+    public static final String TEXT_KEY_PREFIX = "item_text_";
 
     // Constructor que acepta el conjunto de datos de números.
     public MyAdapter(ArrayList<Integer> myDataset) {
@@ -23,8 +29,9 @@ public class MyAdapter extends RecyclerView.Adapter<MyAdapter.MyViewHolder> {
     // 1. ViewHolder: Proporciona una referencia a las vistas para cada elemento de datos.
     public static class MyViewHolder extends RecyclerView.ViewHolder {
         public TextView textView;
-        // **Nuevo:** Referencia al EditText
         public EditText editText;
+        // NUEVO: Listener para guardar el texto
+        public TextWatcher textWatcher;
 
         public MyViewHolder(View v) {
             super(v);
@@ -48,11 +55,46 @@ public class MyAdapter extends RecyclerView.Adapter<MyAdapter.MyViewHolder> {
     // 3. onBindViewHolder: Reemplaza el contenido de la vista con el dato en la posición dada.
     @Override
     public void onBindViewHolder(@NonNull MyViewHolder holder, int position) {
+        final Context context = holder.itemView.getContext();
+        final int itemNumber = mDataset.get(position);
+        final String itemNumberStr = String.valueOf(itemNumber);
+        
         // Obtiene el número de la posición y lo establece en el TextView
-        holder.textView.setText(String.valueOf(mDataset.get(position)));
+        holder.textView.setText(itemNumberStr);
+        
+        // 1. Cargar el texto guardado para este ítem
+        SharedPreferences prefs = context.getSharedPreferences(MainActivity.SHARED_PREFS_NAME, Context.MODE_PRIVATE);
+        String savedText = prefs.getString(TEXT_KEY_PREFIX + itemNumberStr, "");
+        
+        // 2. Remover el listener anterior para evitar que se dispare al establecer el texto
+        if (holder.textWatcher != null) {
+            holder.editText.removeTextChangedListener(holder.textWatcher);
+        }
+        
+        // 3. Establecer el texto cargado
+        holder.editText.setText(savedText);
 
-        // Puedes inicializar el EditText aquí si tu dataset tuviera un campo de texto
-        // Por ejemplo, holder.editText.setText(mDataset.getText(position));
+        // 4. Crear y asignar un nuevo listener de texto
+        holder.textWatcher = new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+                // No se necesita
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                // No se necesita
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                // Guardar el texto en SharedPreferences
+                SharedPreferences.Editor editor = prefs.edit();
+                editor.putString(TEXT_KEY_PREFIX + itemNumberStr, s.toString());
+                editor.apply();
+            }
+        };
+        holder.editText.addTextChangedListener(holder.textWatcher);
     }
 
     // 4. getItemCount: Devuelve el tamaño del dataset.

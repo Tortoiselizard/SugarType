@@ -1,6 +1,9 @@
 package com.example.customkeyboardsystemlevel;
 
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences; 
 import android.inputmethodservice.InputMethodService;
 import android.inputmethodservice.Keyboard;
@@ -8,10 +11,24 @@ import android.inputmethodservice.KeyboardView;
 import android.provider.Settings;
 import android.view.View;
 import android.view.inputmethod.InputConnection;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
+
 import java.util.ArrayList; 
 
 public class CustomKeyboardApp extends InputMethodService
         implements KeyboardView.OnKeyboardActionListener {
+
+    // NUEVO: Receptor de Broadcast para los clics en los botones flotantes
+    private ButtonClickReceiver buttonClickReceiver;
+
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        // Inicializar y registrar el receptor
+        buttonClickReceiver = new ButtonClickReceiver();
+        LocalBroadcastManager.getInstance(this).registerReceiver(
+            buttonClickReceiver, new IntentFilter(StatefulButtonView.ACTION_BUTTON_CLICKED));
+    }
 
     @Override
     public View onCreateInputView() {
@@ -66,6 +83,15 @@ public class CustomKeyboardApp extends InputMethodService
         stopService(new Intent(this, FloatingButtonService.class));
     }
 
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        // Desregistrar el receptor al destruir el servicio
+        if (buttonClickReceiver != null) {
+            LocalBroadcastManager.getInstance(this).unregisterReceiver(buttonClickReceiver);
+        }
+    }
+
     // El resto de los métodos (onPress, onRelease, etc.) permanecen sin cambios...
     @Override
     public void onPress(int i) {}
@@ -96,4 +122,28 @@ public class CustomKeyboardApp extends InputMethodService
 
     @Override
     public void swipeUp() {}
+    
+    /**
+     * NUEVO: BroadcastReceiver para recibir el clic del botón flotante.
+     */
+    private class ButtonClickReceiver extends BroadcastReceiver {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (StatefulButtonView.ACTION_BUTTON_CLICKED.equals(intent.getAction())) {
+                String buttonValue = intent.getStringExtra(StatefulButtonView.BUTTON_VALUE_KEY);
+                
+                if (buttonValue != null) {
+                    // 1. Obtener el texto asociado de SharedPreferences
+                    SharedPreferences prefs = context.getSharedPreferences(MainActivity.SHARED_PREFS_NAME, Context.MODE_PRIVATE);
+                    String textToWrite = prefs.getString(MyAdapter.TEXT_KEY_PREFIX + buttonValue, "");
+                    
+                    // 2. Escribir el texto en el input seleccionado (InputConnection)
+                    InputConnection ic = getCurrentInputConnection();
+                    if (ic != null) {
+                        ic.commitText(textToWrite, 1);
+                    }
+                }
+            }
+        }
+    }
 }

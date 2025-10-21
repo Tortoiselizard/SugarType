@@ -1,6 +1,7 @@
 package com.example.customkeyboardsystemlevel;
 
 import android.content.Context;
+import android.content.Intent;
 import android.content.res.TypedArray;
 import android.util.AttributeSet;
 import android.util.TypedValue;
@@ -8,6 +9,8 @@ import android.view.LayoutInflater;
 import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.Toast;
+
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 public class StatefulButtonView extends FrameLayout {
 
@@ -19,6 +22,10 @@ public class StatefulButtonView extends FrameLayout {
     private State currentState;
     private String buttonValue;
     private Button button;
+    
+    // NUEVA CONSTANTE para la acción de Broadcast cuando se hace clic
+    public static final String ACTION_BUTTON_CLICKED = "com.example.customkeyboardsystemlevel.BUTTON_CLICKED";
+    public static final String BUTTON_VALUE_KEY = "buttonValue";
 
     // Constante para el desplazamiento en DP
     private static final int MOVE_DOWN_DP = 10;
@@ -71,14 +78,20 @@ public class StatefulButtonView extends FrameLayout {
     }
     
     /**
-     * NUEVO MÉTODO: Ejecuta la acción de clic previamente definida en el OnClickListener.
-     * Este método es llamado por FloatingButtonService cuando detecta un "click" y no un "drag".
+     * MODIFICADO: Ejecuta la acción de clic y ahora envía un Broadcast local con el valor
+     * del botón cuando está en modo WORKING.
      */
     public void performClickAction() {
         switch (currentState) {
             case WORKING:
                 // Acción para el estado "working"
-                Toast.makeText(getContext(), "Botón (Working): " + buttonValue, Toast.LENGTH_SHORT).show();
+                Toast.makeText(getContext(), "Botón (Working): " + buttonValue + " - ESCRIBIENDO", Toast.LENGTH_SHORT).show();
+                
+                // *** MODIFICACIÓN CLAVE: Enviar Broadcast local al hacer clic ***
+                Intent intent = new Intent(ACTION_BUTTON_CLICKED);
+                intent.putExtra(BUTTON_VALUE_KEY, buttonValue); // El valor del botón (el número de ítem)
+                LocalBroadcastManager.getInstance(getContext()).sendBroadcast(intent);
+                
                 break;
             case EDITING:
                 // Acción para el estado "editing"

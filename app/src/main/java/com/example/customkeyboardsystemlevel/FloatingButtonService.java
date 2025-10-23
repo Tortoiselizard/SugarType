@@ -81,7 +81,8 @@ public class FloatingButtonService extends Service {
 
     /**
      * MODIFICADO: Ahora crea instancias de StatefulButtonView, carga su posición 
-     * guardada y añade cada una como una ventana flotante separada al WindowManager.
+     * guardada, *carga el texto asociado* y añade cada una como una ventana flotante 
+     * separada al WindowManager.
      */
     private void updateButtons(ArrayList<Integer> items) {
         // PASO 1: Remover todas las vistas flotantes actuales.
@@ -111,6 +112,11 @@ public class FloatingButtonService extends Service {
                 initialState
             );
             
+            // ************ NUEVA MODIFICACIÓN CLAVE (CARGA DE TEXTO) ************
+            // Cargar y establecer el texto del botón desde SharedPreferences (el contenido del EditText)
+            statefulButton.setButtonTextFromPrefs();
+            // ************ FIN NUEVA MODIFICACIÓN CLAVE (CARGA DE TEXTO) ************
+
             // Esto asegura que el FrameLayout (padre) reciba los eventos táctiles
             // y no solo el Button (hijo).
             statefulButton.findViewById(R.id.stateful_button).setClickable(false);

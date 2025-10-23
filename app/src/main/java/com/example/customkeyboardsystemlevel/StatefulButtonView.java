@@ -9,6 +9,7 @@ import android.view.LayoutInflater;
 import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.Toast;
+import android.content.SharedPreferences; // Importación necesaria
 
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
@@ -20,7 +21,7 @@ public class StatefulButtonView extends FrameLayout {
     }
 
     private State currentState;
-    private String buttonValue;
+    private String buttonValue; // Este es el número del ítem, no el texto
     private Button button;
     
     // NUEVA CONSTANTE para la acción de Broadcast cuando se hace clic
@@ -69,7 +70,8 @@ public class StatefulButtonView extends FrameLayout {
         }
 
         updateButtonState();
-        button.setText(buttonValue);
+        // MODIFICACIÓN: Ya no se establece el texto del botón aquí. Se usará el nuevo método setButtonText.
+        // button.setText(buttonValue);
 
         // MODIFICADO: Se elimina el OnClickListener. 
         // La acción de clic ahora se gestionará desde el FloatingButtonService.
@@ -85,6 +87,7 @@ public class StatefulButtonView extends FrameLayout {
         switch (currentState) {
             case WORKING:
                 // Acción para el estado "working"
+                // El Toast muestra el valor del ítem (el número), no el texto.
                 Toast.makeText(getContext(), "Botón (Working): " + buttonValue + " - ESCRIBIENDO", Toast.LENGTH_SHORT).show();
                 
                 // *** MODIFICACIÓN CLAVE: Enviar Broadcast local al hacer clic ***
@@ -110,9 +113,21 @@ public class StatefulButtonView extends FrameLayout {
         return currentState;
     }
 
-    public void setButtonValue(String value) {
-        this.buttonValue = value;
-        button.setText(value);
+    // MODIFICACIÓN: Método obsoleto. El texto debe cargarse con setButtonTextFromPrefs.
+    // public void setButtonValue(String value) {
+    //     this.buttonValue = value;
+    //     button.setText(value);
+    // }
+    
+    // NUEVO: Método para establecer el texto del botón leyendo de SharedPreferences
+    public void setButtonTextFromPrefs() {
+        SharedPreferences prefs = getContext().getSharedPreferences(MainActivity.SHARED_PREFS_NAME, Context.MODE_PRIVATE);
+        String savedText = prefs.getString(MyAdapter.TEXT_KEY_PREFIX + this.buttonValue, this.buttonValue); 
+        // Si el texto guardado está vacío, usa el número de ítem por defecto
+        if (savedText == null || savedText.isEmpty()) {
+            savedText = this.buttonValue;
+        }
+        button.setText(savedText);
     }
     
     public String getButtonValue() {

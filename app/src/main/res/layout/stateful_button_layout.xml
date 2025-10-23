@@ -11,5 +11,6 @@
         android:textSize="24sp"
         android:textStyle="bold"
         android:gravity="center"
-        android:background="@drawable/floating_button_background" />
+        android:background="?android:attr/selectableItemBackground"
+        android:textAllCaps="false" />
 </merge>

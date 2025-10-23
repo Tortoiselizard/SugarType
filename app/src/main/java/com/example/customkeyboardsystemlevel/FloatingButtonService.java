@@ -28,6 +28,8 @@ public class FloatingButtonService extends Service {
     private final ArrayList<View> floatingViews = new ArrayList<>();
     
     private DataUpdateReceiver dataUpdateReceiver;
+    // NUEVO: Receiver para la actualización del texto
+    private TextUpdateReceiver textUpdateReceiver; 
     
     // Para almacenar el estado actual (WORKING o EDITING)
     private StatefulButtonView.State currentButtonState = StatefulButtonView.State.WORKING; 
@@ -57,6 +59,12 @@ public class FloatingButtonService extends Service {
         dataUpdateReceiver = new DataUpdateReceiver();
         LocalBroadcastManager.getInstance(this).registerReceiver(
                 dataUpdateReceiver, new IntentFilter(MainActivity.ACTION_DATA_UPDATE));
+        
+        // *** NUEVA MODIFICACIÓN: Registrar el TextUpdateReceiver ***
+        textUpdateReceiver = new TextUpdateReceiver();
+        LocalBroadcastManager.getInstance(this).registerReceiver(
+            textUpdateReceiver, new IntentFilter(MyAdapter.ACTION_TEXT_UPDATE));
+        // ***********************************************************
     }
 
     @Override
@@ -268,6 +276,31 @@ public class FloatingButtonService extends Service {
             }
         }
     }
+    
+    // *** NUEVA CLASE: Receiver para la actualización del texto ***
+    private class TextUpdateReceiver extends BroadcastReceiver {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (MyAdapter.ACTION_TEXT_UPDATE.equals(intent.getAction())) {
+                String updatedButtonValue = intent.getStringExtra(MyAdapter.UPDATED_BUTTON_VALUE_KEY);
+                
+                if (updatedButtonValue != null) {
+                    // Buscar el StatefulButtonView correspondiente y actualizar su texto
+                    for (View view : floatingViews) {
+                        if (view instanceof StatefulButtonView) {
+                            StatefulButtonView statefulButton = (StatefulButtonView) view;
+                            if (updatedButtonValue.equals(statefulButton.getButtonValue())) {
+                                // Se encontró el botón, ahora le pedimos que recargue su texto
+                                statefulButton.setButtonTextFromPrefs();
+                                break; // Ya lo encontramos, salimos del bucle
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    // *************************************************************
 
     @Override
     public void onDestroy() {
@@ -283,5 +316,11 @@ public class FloatingButtonService extends Service {
         if (dataUpdateReceiver != null) {
             LocalBroadcastManager.getInstance(this).unregisterReceiver(dataUpdateReceiver);
         }
+        
+        // *** NUEVA MODIFICACIÓN: Desregistrar el TextUpdateReceiver ***
+        if (textUpdateReceiver != null) {
+            LocalBroadcastManager.getInstance(this).unregisterReceiver(textUpdateReceiver);
+        }
+        // ***************************************************************
     }
 }

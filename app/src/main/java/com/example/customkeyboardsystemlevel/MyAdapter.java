@@ -1,6 +1,7 @@
 package com.example.customkeyboardsystemlevel;
 
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -11,6 +12,7 @@ import android.widget.EditText;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import java.util.ArrayList;
@@ -20,6 +22,10 @@ public class MyAdapter extends RecyclerView.Adapter<MyAdapter.MyViewHolder> {
     private ArrayList<Integer> mDataset;
     // NUEVA CONSTANTE para la clave de SharedPreferences del texto
     public static final String TEXT_KEY_PREFIX = "item_text_";
+    
+    // NUEVA CONSTANTE para la acción de Broadcast cuando se actualiza el texto
+    public static final String ACTION_TEXT_UPDATE = "com.example.customkeyboardsystemlevel.TEXT_UPDATE";
+    public static final String UPDATED_BUTTON_VALUE_KEY = "updatedButtonValue"; // Clave para el número de ítem
 
     // Constructor que acepta el conjunto de datos de números.
     public MyAdapter(ArrayList<Integer> myDataset) {
@@ -92,6 +98,12 @@ public class MyAdapter extends RecyclerView.Adapter<MyAdapter.MyViewHolder> {
                 SharedPreferences.Editor editor = prefs.edit();
                 editor.putString(TEXT_KEY_PREFIX + itemNumberStr, s.toString());
                 editor.apply();
+                
+                // *** NUEVA MODIFICACIÓN: Enviar Broadcast Local con el número de ítem actualizado ***
+                Intent intent = new Intent(ACTION_TEXT_UPDATE);
+                intent.putExtra(UPDATED_BUTTON_VALUE_KEY, itemNumberStr);
+                LocalBroadcastManager.getInstance(context).sendBroadcast(intent);
+                // *********************************************************************************
             }
         };
         holder.editText.addTextChangedListener(holder.textWatcher);

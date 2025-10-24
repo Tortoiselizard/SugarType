@@ -6,6 +6,7 @@
     android:padding="8dp">
 
     <LinearLayout
+        android:id="@+id/itemParentLayout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
@@ -31,6 +32,14 @@
             android:inputType="text" />
 
     </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/sublistContainer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingStart="32dp"
+        android:visibility="gone"> </LinearLayout>
 
     <View
         android:layout_width="match_parent"

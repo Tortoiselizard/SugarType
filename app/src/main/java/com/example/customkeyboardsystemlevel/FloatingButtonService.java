@@ -41,6 +41,11 @@ public class FloatingButtonService extends Service {
     // Posición inicial por defecto si no se encuentra ninguna guardada.
     private static final int DEFAULT_INITIAL_X = 0;
     private static final int DEFAULT_INITIAL_Y_OFFSET = 100;
+    
+    // Constantes para la detección de gestos
+    private static final int SWIPE_MIN_DISTANCE_PIXELS = 100; // Mínima distancia para considerarlo un deslizamiento
+    private static final int DRAG_MAX_DISTANCE_PIXELS = 100; // Máxima distancia permitida para un click o arrastre en modo WORKING (evita mover el botón accidentalmente)
+    private static final int DRAG_MIN_DISTANCE_PIXELS_FOR_MOVE = 10; // Mínima distancia para un arrastre real en modo EDITING
 
     public FloatingButtonService() {
     }
@@ -176,6 +181,7 @@ public class FloatingButtonService extends Service {
     
     /**
      * MODIFICADO: Se añade el parámetro itemNumber para guardar la posición al finalizar el arrastre.
+     * ADICIÓN: Lógica para detectar deslizamiento (swipe) en modo WORKING.
      */
     private void setupDragListener(final View viewToDrag, final WindowManager.LayoutParams viewParams, final StatefulButtonView.State state, final int itemNumber) {
         viewToDrag.setOnTouchListener(new View.OnTouchListener() {
@@ -186,17 +192,15 @@ public class FloatingButtonService extends Service {
             private long startTime;
             private boolean isMoving = false; // Bandera para rastrear si realmente hubo arrastre.
             private static final int MAX_CLICK_DURATION = 200;
-            // Tolerancia de movimiento en píxeles para distinguir click de drag
-            private static final int MAX_MOVE_TOLERANCE = 10; 
+            // Se usa la constante DRAG_MIN_DISTANCE_PIXELS_FOR_MOVE para distinguir click de drag
+            private static final int MAX_MOVE_TOLERANCE = DRAG_MIN_DISTANCE_PIXELS_FOR_MOVE; 
 
             @Override
             public boolean onTouch(View v, MotionEvent event) {
                 
-                // Si no está en modo EDITING, el listener de arrastre 
-                // debería ignorar el evento MOVE para impedir el arrastre.
-                if (state != StatefulButtonView.State.EDITING && event.getAction() == MotionEvent.ACTION_MOVE) {
-                    return false; 
-                }
+                // NOTA: Se elimina la restricción de arrastre para WORKING en ACTION_MOVE.
+                // Ahora el arrastre/deslizamiento es posible en ambos estados, pero 
+                // con diferentes consecuencias en ACTION_UP.
                 
                 switch (event.getAction()) {
                     case MotionEvent.ACTION_DOWN:
@@ -209,14 +213,14 @@ public class FloatingButtonService extends Service {
                         isMoving = false; // Reiniciar la bandera
                         return true;
                     case MotionEvent.ACTION_MOVE:
-                        // Solo permitimos el arrastre si el estado es EDITING.
+                        // Solo permitimos el *arrastre de la vista* si el estado es EDITING.
                         if (state == StatefulButtonView.State.EDITING) {
                             // Solo procesar el movimiento si el movimiento excede la tolerancia para evitar
                             // un arrastre accidental al intentar un click.
                             if (Math.abs(event.getRawX() - initialTouchX) > MAX_MOVE_TOLERANCE || 
                                 Math.abs(event.getRawY() - initialTouchY) > MAX_MOVE_TOLERANCE) {
                                 
-                                isMoving = true; // El arrastre ha comenzado.
+                                isMoving = true; // El arrastre ha comenzado (para modo EDITING).
                                 // Actualizamos los parámetros de la VISTA ESPECÍFICA
                                 viewParams.x = initialX + (int) (event.getRawX() - initialTouchX);
                                 viewParams.y = initialY + (int) (event.getRawY() - initialTouchY);
@@ -224,38 +228,115 @@ public class FloatingButtonService extends Service {
                                 windowManager.updateViewLayout(viewToDrag, viewParams); 
                             }
                             return true;
+                        } else {
+                            // En modo WORKING, solo necesitamos rastrear si hubo un movimiento significativo 
+                            // que califique como deslizamieto (swipe).
+                            if (Math.abs(event.getRawX() - initialTouchX) > MAX_MOVE_TOLERANCE || 
+                                Math.abs(event.getRawY() - initialTouchY) > MAX_MOVE_TOLERANCE) {
+                                isMoving = true; // El deslizamiento ha comenzado (para modo WORKING).
+                            }
+                            // No se actualiza la posición de la vista en modo WORKING para impedir el arrastre.
+                            return true; 
                         }
-                        return false; 
                     case MotionEvent.ACTION_UP:
                         long endTime = System.currentTimeMillis();
-                        
-                        // Lógica de "click" vs "drag"
-                        if (endTime - startTime < MAX_CLICK_DURATION && 
-                            !isMoving &&
-                            Math.abs(event.getRawX() - initialTouchX) < MAX_MOVE_TOLERANCE && 
-                            Math.abs(event.getRawY() - initialTouchY) < MAX_MOVE_TOLERANCE) {
+                        float deltaX = event.getRawX() - initialTouchX;
+                        float deltaY = event.getRawY() - initialTouchY;
+
+                        // Lógica de "click" vs "drag/swipe"
+
+                        if (state == StatefulButtonView.State.WORKING) {
+                            // --- Lógica para WORKING: Click vs Swipe ---
                             
-                            // Si es un click, llamamos a la acción de la CustomView.
-                            if (viewToDrag instanceof StatefulButtonView) {
-                                ((StatefulButtonView) viewToDrag).performClickAction();
+                            // 1. Detección de Click (Toque simple)
+                            if (endTime - startTime < MAX_CLICK_DURATION && 
+                                Math.abs(deltaX) < MAX_MOVE_TOLERANCE && 
+                                Math.abs(deltaY) < MAX_MOVE_TOLERANCE) {
+                                
+                                // Si es un click, llamamos a la acción de la CustomView.
+                                if (viewToDrag instanceof StatefulButtonView) {
+                                    ((StatefulButtonView) viewToDrag).performClickAction();
+                                }
+                                return true; // Consumir el evento de clic.
+                            } 
+                            
+                            // 2. Detección de Swipe (Deslizamiento)
+                            if (isMoving && (Math.abs(deltaX) > SWIPE_MIN_DISTANCE_PIXELS || Math.abs(deltaY) > SWIPE_MIN_DISTANCE_PIXELS)) {
+                                
+                                // Asegurarse de que el botón no se movió del lugar accidentalmente
+                                if (Math.abs(viewParams.x - initialX) < DRAG_MAX_DISTANCE_PIXELS &&
+                                    Math.abs(viewParams.y - initialY) < DRAG_MAX_DISTANCE_PIXELS) {
+                                    
+                                    // Calcular la dirección
+                                    StatefulButtonView.Direction direction = calculateSwipeDirection(deltaX, deltaY);
+                                    
+                                    if (viewToDrag instanceof StatefulButtonView) {
+                                        ((StatefulButtonView) viewToDrag).performSwipeAction(direction);
+                                    }
+                                    return true; // Consumir el evento de deslizamiento.
+                                }
                             }
                             
-                            return true; // Consumir el evento de clic.
-                        } else if (state == StatefulButtonView.State.EDITING && isMoving) {
-                            // ************ MODIFICACIÓN CLAVE (GUARDADO DE POSICIÓN) ************
-                            // Si fue un arrastre en modo EDITING, guardar la posición final.
-                            SharedPreferences.Editor editor = getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit();
-                            editor.putInt(X_POS_KEY_PREFIX + itemNumber, viewParams.x);
-                            editor.putInt(Y_POS_KEY_PREFIX + itemNumber, viewParams.y);
-                            editor.apply();
-                            // ************ FIN MODIFICACIÓN CLAVE (GUARDADO DE POSICIÓN) ************
+                            // Si llegó hasta aquí, fue un movimiento que no calificó ni como click ni como swipe.
+                            return true;
+
+                        } else if (state == StatefulButtonView.State.EDITING) {
+                            // --- Lógica para EDITING: Click vs Drag ---
+                            
+                             if (endTime - startTime < MAX_CLICK_DURATION && 
+                                Math.abs(deltaX) < MAX_MOVE_TOLERANCE && 
+                                Math.abs(deltaY) < MAX_MOVE_TOLERANCE) {
+                                
+                                // Si es un click, llamamos a la acción de la CustomView.
+                                if (viewToDrag instanceof StatefulButtonView) {
+                                    ((StatefulButtonView) viewToDrag).performClickAction();
+                                }
+                                
+                                return true; // Consumir el evento de clic.
+                            } else if (isMoving) {
+                                // ************ MODIFICACIÓN CLAVE (GUARDADO DE POSICIÓN) ************
+                                // Si fue un arrastre en modo EDITING, guardar la posición final.
+                                SharedPreferences.Editor editor = getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit();
+                                editor.putInt(X_POS_KEY_PREFIX + itemNumber, viewParams.x);
+                                editor.putInt(Y_POS_KEY_PREFIX + itemNumber, viewParams.y);
+                                editor.apply();
+                                // ************ FIN MODIFICACIÓN CLAVE (GUARDADO DE POSICIÓN) ************
+                            }
+                            return true; // Consumir el evento (fue un arrastre o un click).
                         }
-                        
-                        return true; // Consumir el evento (fue un arrastre o un click).
+                        return false; 
                 }
                 return false;
             }
         });
+    }
+    
+    /**
+     * NUEVO: Calcula la dirección del deslizamiento (swipe) a partir de los deltas X e Y.
+     */
+    private StatefulButtonView.Direction calculateSwipeDirection(float deltaX, float deltaY) {
+        boolean isHorizontal = Math.abs(deltaX) > Math.abs(deltaY);
+        
+        if (isHorizontal) {
+            if (Math.abs(deltaX) > SWIPE_MIN_DISTANCE_PIXELS) {
+                return deltaX > 0 ? StatefulButtonView.Direction.RIGHT : StatefulButtonView.Direction.LEFT;
+            }
+        } else {
+            if (Math.abs(deltaY) > SWIPE_MIN_DISTANCE_PIXELS) {
+                return deltaY > 0 ? StatefulButtonView.Direction.DOWN : StatefulButtonView.Direction.UP;
+            }
+        }
+        
+        // Si no calificó como movimiento puramente horizontal o vertical, revisamos diagonales
+        if (Math.abs(deltaX) > SWIPE_MIN_DISTANCE_PIXELS * 0.7 && Math.abs(deltaY) > SWIPE_MIN_DISTANCE_PIXELS * 0.7) {
+            if (deltaY < 0 && deltaX < 0) return StatefulButtonView.Direction.UP_LEFT;
+            if (deltaY < 0 && deltaX > 0) return StatefulButtonView.Direction.UP_RIGHT;
+            if (deltaY > 0 && deltaX < 0) return StatefulButtonView.Direction.DOWN_LEFT;
+            if (deltaY > 0 && deltaX > 0) return StatefulButtonView.Direction.DOWN_RIGHT;
+        }
+
+        // Si no cumple los umbrales para una dirección clara, devuelve NINGUNO.
+        return StatefulButtonView.Direction.NONE; 
     }
 
     private class DataUpdateReceiver extends BroadcastReceiver {

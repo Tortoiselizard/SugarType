@@ -19,6 +19,19 @@ public class StatefulButtonView extends FrameLayout {
         WORKING,
         EDITING
     }
+    
+    // NUEVO: Enumeración para las direcciones de deslizamiento
+    public enum Direction {
+        UP,
+        DOWN,
+        LEFT,
+        RIGHT,
+        UP_LEFT,
+        UP_RIGHT,
+        DOWN_LEFT,
+        DOWN_RIGHT,
+        NONE
+    }
 
     private State currentState;
     private String buttonValue; // Este es el número del ítem, no el texto
@@ -26,7 +39,10 @@ public class StatefulButtonView extends FrameLayout {
     
     // NUEVA CONSTANTE para la acción de Broadcast cuando se hace clic
     public static final String ACTION_BUTTON_CLICKED = "com.example.customkeyboardsystemlevel.BUTTON_CLICKED";
+    // NUEVA CONSTANTE para la acción de Broadcast cuando se hace deslizamiento (swipe)
+    public static final String ACTION_BUTTON_SWIPED = "com.example.customkeyboardsystemlevel.BUTTON_SWIPED";
     public static final String BUTTON_VALUE_KEY = "buttonValue";
+    public static final String SWIPE_DIRECTION_KEY = "swipeDirection"; // Clave para la dirección del swipe
 
     // Constante para el desplazamiento en DP
     private static final int MOVE_DOWN_DP = 10;
@@ -81,16 +97,15 @@ public class StatefulButtonView extends FrameLayout {
     
     /**
      * MODIFICADO: Ejecuta la acción de clic y ahora envía un Broadcast local con el valor
-     * del botón cuando está en modo WORKING.
+     * del botón cuando está en modo WORKING (Acción de "Toque simple").
      */
     public void performClickAction() {
         switch (currentState) {
             case WORKING:
-                // Acción para el estado "working"
-                // El Toast muestra el valor del ítem (el número), no el texto.
-                Toast.makeText(getContext(), "Botón (Working): " + buttonValue + " - ESCRIBIENDO", Toast.LENGTH_SHORT).show();
+                // Acción para el estado "working" (Toque simple)
+                Toast.makeText(getContext(), "Botón (Working): " + buttonValue + " - ESCRITURA PRINCIPAL", Toast.LENGTH_SHORT).show();
                 
-                // *** MODIFICACIÓN CLAVE: Enviar Broadcast local al hacer clic ***
+                // *** MODIFICACIÓN CLAVE: Enviar Broadcast local al hacer clic (Toque simple) ***
                 Intent intent = new Intent(ACTION_BUTTON_CLICKED);
                 intent.putExtra(BUTTON_VALUE_KEY, buttonValue); // El valor del botón (el número de ítem)
                 LocalBroadcastManager.getInstance(getContext()).sendBroadcast(intent);
@@ -98,9 +113,26 @@ public class StatefulButtonView extends FrameLayout {
                 break;
             case EDITING:
                 // Acción para el estado "editing"
-                Toast.makeText(getContext(), "Botón (Editing): " + buttonValue + " - MOVER", Toast.LENGTH_SHORT).show();
+                Toast.makeText(getContext(), "Botón (Editing): " + buttonValue + " - CLICK (NO-MOVE)", Toast.LENGTH_SHORT).show();
                 
                 break;
+        }
+    }
+    
+    /**
+     * NUEVO: Ejecuta la acción de deslizamiento (swipe) y envía un Broadcast local con
+     * el valor del botón y la dirección del deslizamiento cuando está en modo WORKING.
+     */
+    public void performSwipeAction(Direction direction) {
+        if (currentState == State.WORKING) {
+            // Acción para el estado "working" (Deslizamiento)
+            Toast.makeText(getContext(), "Botón (Working): " + buttonValue + " - ESCRITURA SWIPE: " + direction.name(), Toast.LENGTH_SHORT).show();
+            
+            // *** NUEVA MODIFICACIÓN CLAVE: Enviar Broadcast local al deslizar ***
+            Intent intent = new Intent(ACTION_BUTTON_SWIPED);
+            intent.putExtra(BUTTON_VALUE_KEY, buttonValue); // El valor del botón (el número de ítem)
+            intent.putExtra(SWIPE_DIRECTION_KEY, direction.name()); // La dirección del deslizamiento
+            LocalBroadcastManager.getInstance(getContext()).sendBroadcast(intent);
         }
     }
 

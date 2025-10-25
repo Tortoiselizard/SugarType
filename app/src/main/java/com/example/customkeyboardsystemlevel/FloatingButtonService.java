@@ -312,30 +312,56 @@ public class FloatingButtonService extends Service {
     }
     
     /**
-     * NUEVO: Calcula la dirección del deslizamiento (swipe) a partir de los deltas X e Y.
+     * CORREGIDO: Calcula la dirección del deslizamiento (swipe) a partir de los deltas X e Y.
+     * Se ajusta la lógica para detectar movimientos diagonales que no son puramente
+     * horizontales o verticales, asegurando que se cumpla el umbral de distancia.
      */
     private StatefulButtonView.Direction calculateSwipeDirection(float deltaX, float deltaY) {
-        boolean isHorizontal = Math.abs(deltaX) > Math.abs(deltaY);
         
+        // La distancia mínima requerida para un swipe.
+        final float swipeThreshold = SWIPE_MIN_DISTANCE_PIXELS;
+        
+        // Umbral para considerar un movimiento en una dirección principal (horizontal o vertical)
+        boolean isHorizontal = Math.abs(deltaY) <= swipeThreshold && Math.abs(deltaX) >= swipeThreshold;
+        boolean isVertical = Math.abs(deltaX) <= swipeThreshold && Math.abs(deltaY) >= swipeThreshold;
+        
+        
+        // Umbral para considerar una componente "significativa" para un swipe diagonal
+        // (Usar un valor un poco menor al umbral principal para ser permisivo)
+        final float diagonalThreshold = swipeThreshold * 0.7f; 
+
+        // 1. Clasificación como Cardinal (Horizontal o Vertical)
         if (isHorizontal) {
-            if (Math.abs(deltaX) > SWIPE_MIN_DISTANCE_PIXELS) {
+            if (Math.abs(deltaX) > swipeThreshold) {
+                // Si el movimiento horizontal es dominante Y supera el umbral
                 return deltaX > 0 ? StatefulButtonView.Direction.RIGHT : StatefulButtonView.Direction.LEFT;
             }
-        } else {
-            if (Math.abs(deltaY) > SWIPE_MIN_DISTANCE_PIXELS) {
+        } else if (isVertical) {
+            if (Math.abs(deltaY) > swipeThreshold) {
+                // Si el movimiento vertical es dominante Y supera el umbral
                 return deltaY > 0 ? StatefulButtonView.Direction.DOWN : StatefulButtonView.Direction.UP;
             }
         }
         
-        // Si no calificó como movimiento puramente horizontal o vertical, revisamos diagonales
-        if (Math.abs(deltaX) > SWIPE_MIN_DISTANCE_PIXELS * 0.7 && Math.abs(deltaY) > SWIPE_MIN_DISTANCE_PIXELS * 0.7) {
+        // 2. Clasificación como Diagonal (Si ambas componentes son significativas)
+        // Se ejecuta si el movimiento no se clasificó como puramente Cardinal,
+        // pero ambas componentes superan el umbral diagonal.
+        if (Math.abs(deltaX) > diagonalThreshold && Math.abs(deltaY) > diagonalThreshold) {
+            
+            // Cuadrante UP/LEFT
             if (deltaY < 0 && deltaX < 0) return StatefulButtonView.Direction.UP_LEFT;
+            
+            // Cuadrante UP/RIGHT
             if (deltaY < 0 && deltaX > 0) return StatefulButtonView.Direction.UP_RIGHT;
+            
+            // Cuadrante DOWN/LEFT
             if (deltaY > 0 && deltaX < 0) return StatefulButtonView.Direction.DOWN_LEFT;
+            
+            // Cuadrante DOWN/RIGHT
             if (deltaY > 0 && deltaX > 0) return StatefulButtonView.Direction.DOWN_RIGHT;
         }
 
-        // Si no cumple los umbrales para una dirección clara, devuelve NINGUNO.
+        // Si no cumple los umbrales para una dirección clara (Cardinal o Diagonal), devuelve NINGUNO.
         return StatefulButtonView.Direction.NONE; 
     }
 

@@ -18,6 +18,8 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Arrays;
+import java.util.List;
 
 // El Adapter se encarga de crear ViewHolders y vincular los datos a ellos.
 public class MyAdapter extends RecyclerView.Adapter<MyAdapter.MyViewHolder> {
@@ -34,6 +36,11 @@ public class MyAdapter extends RecyclerView.Adapter<MyAdapter.MyViewHolder> {
     
     // Constante para el número de sub-items
     private static final int SUB_ITEM_COUNT = 8;
+    
+    // NUEVO: Lista de nombres de sub-items
+    private static final List<String> SUB_ITEM_NAMES = Arrays.asList(
+            "RIGHT", "LEFT", "UP", "DOWN", "UP_LEFT", "UP_RIGHT", "DOWN_LEFT", "DOWN_RIGHT"
+    );
 
     // Constructor que acepta el conjunto de datos de números.
     public MyAdapter(ArrayList<Integer> myDataset) {
@@ -111,8 +118,11 @@ public class MyAdapter extends RecyclerView.Adapter<MyAdapter.MyViewHolder> {
         holder.sublistContainer.removeAllViews();
         
         // 3b. Generar los 8 sub-items
-        for (int i = 1; i <= SUB_ITEM_COUNT; i++) {
-            final String subItemNumberStr = itemNumberStr + "." + i;
+        for (int i = 0; i < SUB_ITEM_COUNT; i++) { // Cambiado a empezar en 0
+            // Usar el nombre de la lista para el sub-ítem
+            final String subItemName = SUB_ITEM_NAMES.get(i);
+            // La clave de almacenamiento usará el número del padre y el nombre del sub-ítem (e.g., "1.RIGHT")
+            final String subItemKey = itemNumberStr + "." + subItemName; 
             
             // Inflar el layout de un sub-ítem (reutilizaremos la estructura base de list_item para simplificar)
             // NOTA: Para un diseño más limpio, se debería crear un layout separado para el sub-ítem.
@@ -125,7 +135,7 @@ public class MyAdapter extends RecyclerView.Adapter<MyAdapter.MyViewHolder> {
             LinearLayout subContainer = subItemView.findViewById(R.id.sublistContainer);
             
             // Ocultar el separador si es el último sub-item.
-            if (i == SUB_ITEM_COUNT) {
+            if (i == SUB_ITEM_COUNT - 1) { // i va de 0 a 7
                 View separator = subItemView.findViewById(subItemView.getId() + 1); // Asumiendo que el separador es el siguiente View
                 if (separator instanceof View && separator.getBackground() != null) {
                    // No se puede ocultar directamente, ya que el último <View> no tiene ID, lo dejamos visible.
@@ -136,13 +146,14 @@ public class MyAdapter extends RecyclerView.Adapter<MyAdapter.MyViewHolder> {
             subParentLayout.setOnClickListener(null);
             subContainer.setVisibility(View.GONE);
             
-            // Establecer el número del sub-ítem
-            subTextView.setText(subItemNumberStr);
+            // Establecer el nombre del sub-ítem
+            subTextView.setText(subItemName);
             
             // Cargar y gestionar el texto del sub-ítem. Usamos un TextWatcher local.
             // Para evitar la complejidad de crear un Holder para el Sub-Item, creamos el TextWatcher aquí.
             SharedPreferences prefs = context.getSharedPreferences(MainActivity.SHARED_PREFS_NAME, Context.MODE_PRIVATE);
-            String savedText = prefs.getString(TEXT_KEY_PREFIX + subItemNumberStr, "");
+            // Usamos subItemKey para la clave
+            String savedText = prefs.getString(TEXT_KEY_PREFIX + subItemKey, "");
             subEditText.setText(savedText);
             
             // Remover y crear un nuevo TextWatcher para el Sub-Item
@@ -154,12 +165,12 @@ public class MyAdapter extends RecyclerView.Adapter<MyAdapter.MyViewHolder> {
                 public void afterTextChanged(Editable s) {
                     // Guardar el texto en SharedPreferences con la clave del sub-ítem
                     SharedPreferences.Editor editor = prefs.edit();
-                    editor.putString(TEXT_KEY_PREFIX + subItemNumberStr, s.toString());
+                    editor.putString(TEXT_KEY_PREFIX + subItemKey, s.toString());
                     editor.apply();
                     
-                    // Enviar Broadcast Local con el número de sub-ítem actualizado
+                    // Enviar Broadcast Local con la clave del sub-ítem actualizado
                     Intent intent = new Intent(ACTION_TEXT_UPDATE);
-                    intent.putExtra(UPDATED_BUTTON_VALUE_KEY, subItemNumberStr);
+                    intent.putExtra(UPDATED_BUTTON_VALUE_KEY, subItemKey);
                     LocalBroadcastManager.getInstance(context).sendBroadcast(intent);
                 }
             };

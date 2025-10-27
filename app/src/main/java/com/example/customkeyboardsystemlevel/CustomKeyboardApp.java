@@ -4,7 +4,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.content.SharedPreferences; 
+import android.content.SharedPreferences;
 import android.inputmethodservice.InputMethodService;
 import android.inputmethodservice.Keyboard;
 import android.inputmethodservice.KeyboardView;
@@ -13,21 +13,29 @@ import android.view.View;
 import android.view.inputmethod.InputConnection;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
-import java.util.ArrayList; 
+import java.util.ArrayList;
 
 public class CustomKeyboardApp extends InputMethodService
         implements KeyboardView.OnKeyboardActionListener {
 
-    // NUEVO: Receptor de Broadcast para los clics en los botones flotantes
+    // Receptor para los clics (Toque simple)
     private ButtonClickReceiver buttonClickReceiver;
+    // NUEVO: Receptor para el deslizamiento (Swipe)
+    private ButtonSwipeReceiver buttonSwipeReceiver;
 
     @Override
     public void onCreate() {
         super.onCreate();
-        // Inicializar y registrar el receptor
+        
+        // 1. Inicializar y registrar el receptor de CLIC
         buttonClickReceiver = new ButtonClickReceiver();
         LocalBroadcastManager.getInstance(this).registerReceiver(
             buttonClickReceiver, new IntentFilter(StatefulButtonView.ACTION_BUTTON_CLICKED));
+            
+        // 2. NUEVO: Inicializar y registrar el receptor de SWIPE
+        buttonSwipeReceiver = new ButtonSwipeReceiver();
+        LocalBroadcastManager.getInstance(this).registerReceiver(
+            buttonSwipeReceiver, new IntentFilter(StatefulButtonView.ACTION_BUTTON_SWIPED));
     }
 
     @Override
@@ -86,9 +94,13 @@ public class CustomKeyboardApp extends InputMethodService
     @Override
     public void onDestroy() {
         super.onDestroy();
-        // Desregistrar el receptor al destruir el servicio
+        // Desregistrar el receptor de CLIC
         if (buttonClickReceiver != null) {
             LocalBroadcastManager.getInstance(this).unregisterReceiver(buttonClickReceiver);
+        }
+        // NUEVO: Desregistrar el receptor de SWIPE
+        if (buttonSwipeReceiver != null) {
+            LocalBroadcastManager.getInstance(this).unregisterReceiver(buttonSwipeReceiver);
         }
     }
 
@@ -124,7 +136,7 @@ public class CustomKeyboardApp extends InputMethodService
     public void swipeUp() {}
     
     /**
-     * NUEVO: BroadcastReceiver para recibir el clic del botón flotante.
+     * BroadcastReceiver para recibir el clic (Toque simple) del botón flotante.
      */
     private class ButtonClickReceiver extends BroadcastReceiver {
         @Override
@@ -133,11 +145,41 @@ public class CustomKeyboardApp extends InputMethodService
                 String buttonValue = intent.getStringExtra(StatefulButtonView.BUTTON_VALUE_KEY);
                 
                 if (buttonValue != null) {
-                    // 1. Obtener el texto asociado de SharedPreferences
+                    // 1. Obtener el texto asociado de SharedPreferences (del ítem principal)
                     SharedPreferences prefs = context.getSharedPreferences(MainActivity.SHARED_PREFS_NAME, Context.MODE_PRIVATE);
                     String textToWrite = prefs.getString(MyAdapter.TEXT_KEY_PREFIX + buttonValue, "");
                     
                     // 2. Escribir el texto en el input seleccionado (InputConnection)
+                    InputConnection ic = getCurrentInputConnection();
+                    if (ic != null) {
+                        ic.commitText(textToWrite, 1);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * NUEVO: BroadcastReceiver para recibir el deslizamiento (swipe) del botón flotante.
+     */
+    private class ButtonSwipeReceiver extends BroadcastReceiver {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (StatefulButtonView.ACTION_BUTTON_SWIPED.equals(intent.getAction())) {
+                String buttonValue = intent.getStringExtra(StatefulButtonView.BUTTON_VALUE_KEY); // e.g., "1"
+                String swipeDirection = intent.getStringExtra(StatefulButtonView.SWIPE_DIRECTION_KEY); // e.g., "RIGHT"
+                
+                if (buttonValue != null && swipeDirection != null && !swipeDirection.equals(StatefulButtonView.Direction.NONE.name())) {
+                    
+                    // 1. Construir la clave de SharedPreferences para el sub-ítem
+                    // e.g., "item_text_" + "1" + "." + "RIGHT" -> "item_text_1.RIGHT"
+                    String subItemKey = MyAdapter.TEXT_KEY_PREFIX + buttonValue + "." + swipeDirection;
+                    
+                    // 2. Obtener el texto asociado de SharedPreferences
+                    SharedPreferences prefs = context.getSharedPreferences(MainActivity.SHARED_PREFS_NAME, Context.MODE_PRIVATE);
+                    String textToWrite = prefs.getString(subItemKey, ""); // Usar la clave del sub-ítem
+                    
+                    // 3. Escribir el texto en el input seleccionado (InputConnection)
                     InputConnection ic = getCurrentInputConnection();
                     if (ic != null) {
                         ic.commitText(textToWrite, 1);
